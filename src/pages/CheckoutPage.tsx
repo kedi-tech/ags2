@@ -1,0 +1,392 @@
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import Header from "@/components/layout/Header";
+import Footer from "@/components/layout/Footer";
+import {
+  CreditCard,
+  Truck,
+  CheckCircle,
+  ChevronRight,
+  Tag,
+  Lock,
+  ChevronDown,
+} from "lucide-react";
+
+const steps = ["Livraison", "Paiement", "Révision"];
+
+const orderItems = [
+  {
+    name: "Casque Audio Premium",
+    price: 299,
+    qty: 1,
+    image: "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=100&q=80",
+  },
+  {
+    name: "Montre Series 7",
+    price: 449,
+    qty: 1,
+    image: "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=100&q=80",
+  },
+];
+
+type PaymentMethod = "cash" | "mobile" | "card";
+
+export default function CheckoutPage() {
+  const navigate = useNavigate();
+  const [currentStep] = useState(2);
+  const [selectedShipping, setSelectedShipping] = useState("standard");
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
+  const [promoCode, setPromoCode] = useState("");
+  const [promoApplied, setPromoApplied] = useState(false);
+  const [form, setForm] = useState({
+    firstName: "",
+    lastName: "",
+    address: "",
+    city: "",
+    state: "",
+    postalCode: "",
+    cardNumber: "",
+    expiry: "",
+    cvv: "",
+  });
+
+  const subtotal = 748;
+  const shipping = selectedShipping === "express" ? 15 : 0;
+  const discount = promoApplied ? 48.16 : 0;
+  const tax = Math.round((subtotal - discount) * 0.08 * 100) / 100;
+  const total = subtotal + shipping - discount + tax;
+
+  const handleApplyPromo = () => {
+    if (promoCode.toUpperCase() === "AGS10") {
+      setPromoApplied(true);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-[#f6f7f8]">
+      <Header />
+
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Progress indicator */}
+        <div className="mb-8">
+          <div className="flex items-center justify-between mb-3">
+            {steps.map((step, idx) => {
+              const stepNum = idx + 1;
+              const isDone = stepNum < currentStep;
+              const isCurrent = stepNum === currentStep;
+              return (
+                <div key={step} className="flex items-center flex-1">
+                  <div className="flex items-center gap-2">
+                    <div
+                      className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
+                        isDone
+                          ? "bg-green-500 text-white"
+                          : isCurrent
+                          ? "bg-[#137fec] text-white ring-4 ring-[#137fec]/20"
+                          : "bg-gray-200 text-gray-400"
+                      }`}
+                    >
+                      {isDone ? <CheckCircle className="w-4 h-4" /> : stepNum}
+                    </div>
+                    <span className={`text-sm font-semibold hidden sm:block ${isCurrent ? "text-[#137fec]" : isDone ? "text-green-600" : "text-gray-400"}`}>
+                      {step}
+                    </span>
+                  </div>
+                  {idx < steps.length - 1 && (
+                    <div className={`flex-1 h-0.5 mx-3 ${isDone || isCurrent ? "bg-[#137fec]" : "bg-gray-200"} transition-all`} />
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          <div className="flex items-center justify-between mt-2">
+            <p className="text-sm font-semibold text-[#137fec]">Étape {currentStep} sur {steps.length}</p>
+            <div className="bg-gray-200 rounded-full h-1.5 w-40 overflow-hidden">
+              <div
+                className="bg-[#137fec] h-full rounded-full transition-all"
+                style={{ width: `${(currentStep / steps.length) * 100}%` }}
+              />
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Left: Form */}
+          <div className="lg:col-span-2 space-y-5">
+            {/* Shipping info */}
+            <div className="bg-white rounded-2xl border border-gray-100 p-6">
+              <h2 className="text-lg font-black text-[#101922] mb-5 flex items-center gap-2">
+                <span className="w-7 h-7 bg-[#137fec]/10 text-[#137fec] rounded-lg flex items-center justify-center text-sm font-bold">1</span>
+                Informations de livraison
+              </h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {[
+                  { key: "firstName", label: "Prénom", placeholder: "Jean" },
+                  { key: "lastName", label: "Nom", placeholder: "Dupont" },
+                  { key: "address", label: "Adresse", placeholder: "123 Rue de la Paix", className: "sm:col-span-2" },
+                  { key: "city", label: "Ville", placeholder: "Paris" },
+                  { key: "state", label: "Région", placeholder: "Île-de-France" },
+                  { key: "postalCode", label: "Code postal", placeholder: "75001" },
+                ].map((field) => (
+                  <div key={field.key} className={(field as any).className || ""}>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1.5">{field.label}</label>
+                    <input
+                      type="text"
+                      value={form[field.key as keyof typeof form]}
+                      onChange={(e) => setForm({ ...form, [field.key]: e.target.value })}
+                      placeholder={field.placeholder}
+                      className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#137fec]/30 focus:border-[#137fec] transition-all"
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Shipping method */}
+            <div className="bg-white rounded-2xl border border-gray-100 p-6">
+              <h2 className="text-lg font-black text-[#101922] mb-5 flex items-center gap-2">
+                <span className="w-7 h-7 bg-[#137fec]/10 text-[#137fec] rounded-lg flex items-center justify-center text-sm font-bold">2</span>
+                Mode de livraison
+              </h2>
+              <div className="space-y-3">
+                {[
+                  { id: "standard", label: "Standard", sub: "3-5 jours ouvrés", price: "Gratuit", icon: "📦" },
+                  { id: "express", label: "Express", sub: "Livraison le lendemain", price: "15€", icon: "⚡" },
+                ].map((option) => (
+                  <label
+                    key={option.id}
+                    className={`flex items-center gap-4 p-4 rounded-xl border-2 cursor-pointer transition-all ${
+                      selectedShipping === option.id
+                        ? "border-[#137fec] bg-[#137fec]/5"
+                        : "border-gray-200 hover:border-gray-300"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="shipping"
+                      value={option.id}
+                      checked={selectedShipping === option.id}
+                      onChange={() => setSelectedShipping(option.id)}
+                      className="accent-[#137fec]"
+                    />
+                    <span className="text-2xl">{option.icon}</span>
+                    <div className="flex-1">
+                      <p className="text-sm font-bold text-gray-800">{option.label}</p>
+                      <p className="text-xs text-gray-400">{option.sub}</p>
+                    </div>
+                    <span className={`text-sm font-bold ${option.id === "standard" ? "text-green-600" : "text-gray-800"}`}>
+                      {option.price}
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            {/* Payment method */}
+            <div className="bg-white rounded-2xl border border-gray-100 p-6">
+              <h2 className="text-lg font-black text-[#101922] mb-5 flex items-center gap-2">
+                <span className="w-7 h-7 bg-[#137fec]/10 text-[#137fec] rounded-lg flex items-center justify-center text-sm font-bold">3</span>
+                Méthode de paiement
+              </h2>
+
+              {/* Payment tabs */}
+              <div className="flex rounded-xl overflow-hidden border border-gray-200 mb-5">
+                {([
+                  { id: "cash" as PaymentMethod, label: "Cash" },
+                  { id: "mobile" as PaymentMethod, label: "Mobile money" },
+                  { id: "card" as PaymentMethod, label: "Carte bancaire" },
+                ]).map((tab) => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setPaymentMethod(tab.id)}
+                    className={`flex-1 py-2.5 text-xs sm:text-sm font-semibold transition-all ${
+                      paymentMethod === tab.id
+                        ? "bg-[#137fec] text-white"
+                        : "text-gray-500 hover:bg-gray-50"
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+
+              {paymentMethod === "cash" && (
+                <div className="bg-[#f6f7f8] rounded-xl p-6 text-sm text-gray-700 space-y-2">
+                  <p className="font-semibold">Paiement en espèces à la livraison</p>
+                  <p className="text-xs text-gray-500">
+                    Préparez le montant exact en GNF. Notre livreur vous remettra un reçu au moment de la livraison.
+                  </p>
+                </div>
+              )}
+
+              {paymentMethod === "mobile" && (
+                <div className="bg-[#f6f7f8] rounded-xl p-6 text-sm text-gray-700 space-y-2">
+                  <p className="font-semibold">Paiement par Mobile Money</p>
+                  <p className="text-xs text-gray-500">
+                    Après validation de la commande, un numéro Mobile Money et les instructions de paiement vous seront envoyés par SMS.
+                  </p>
+                </div>
+              )}
+
+              {paymentMethod === "card" && (
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1.5">Numéro de carte</label>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        value={form.cardNumber}
+                        onChange={(e) => setForm({ ...form, cardNumber: e.target.value })}
+                        placeholder="1234 5678 9012 3456"
+                        className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#137fec]/30 focus:border-[#137fec]"
+                        maxLength={19}
+                      />
+                      <CreditCard className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-600 mb-1.5">Date d'expiration</label>
+                      <input
+                        type="text"
+                        value={form.expiry}
+                        onChange={(e) => setForm({ ...form, expiry: e.target.value })}
+                        placeholder="MM/AA"
+                        className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#137fec]/30 focus:border-[#137fec]"
+                        maxLength={5}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-600 mb-1.5">CVV</label>
+                      <input
+                        type="text"
+                        value={form.cvv}
+                        onChange={(e) => setForm({ ...form, cvv: e.target.value })}
+                        placeholder="123"
+                        className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#137fec]/30 focus:border-[#137fec]"
+                        maxLength={3}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              
+            </div>
+          </div>
+
+          {/* Right: Order summary */}
+          <div className="lg:col-span-1">
+            <div className="bg-white rounded-2xl border border-gray-100 p-6 sticky top-24">
+              <h2 className="text-lg font-black text-[#101922] mb-4">Résumé de commande</h2>
+
+              {/* Items */}
+              <div className="space-y-3 mb-4">
+                {orderItems.map((item) => (
+                  <div key={item.name} className="flex items-center gap-3">
+                    <div className="w-12 h-12 rounded-lg overflow-hidden bg-[#f6f7f8] flex-shrink-0">
+                      <img src={item.image} alt={item.name} className="w-full h-full object-cover" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-semibold text-gray-800 line-clamp-1">{item.name}</p>
+                      <p className="text-xs text-gray-400">Qté: {item.qty}</p>
+                    </div>
+                    <p className="text-sm font-bold text-gray-800 flex-shrink-0">
+                      {item.price.toLocaleString("fr-FR")} GNF
+                    </p>
+                  </div>
+                ))}
+              </div>
+
+              {/* Promo code */}
+              <div className="mb-4">
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <Tag className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+                    <input
+                      type="text"
+                      value={promoCode}
+                      onChange={(e) => setPromoCode(e.target.value)}
+                      placeholder="Code promo (AGS10)"
+                      className="w-full pl-8 pr-3 py-2 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#137fec]/30 focus:border-[#137fec]"
+                    />
+                  </div>
+                  <button
+                    onClick={handleApplyPromo}
+                    className="px-3 py-2 bg-[#137fec] text-white text-xs font-semibold rounded-lg hover:bg-[#0a6fd4] transition-colors"
+                  >
+                    Appliquer
+                  </button>
+                </div>
+                {promoApplied && (
+                  <p className="text-xs text-green-600 font-semibold mt-1.5 flex items-center gap-1">
+                    <CheckCircle className="w-3.5 h-3.5" />
+                    Code AGS10 appliqué — 10% de remise
+                  </p>
+                )}
+              </div>
+
+              {/* Totals */}
+              <div className="border-t border-gray-100 pt-4 space-y-2.5">
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-500">Sous-total</span>
+                  <span className="font-semibold">
+                    {subtotal.toLocaleString("fr-FR")} GNF
+                  </span>
+                </div>
+                {promoApplied && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-green-600">Remise (10%)</span>
+                    <span className="font-semibold text-green-600">
+                      -{discount.toFixed(2)} GNF
+                    </span>
+                  </div>
+                )}
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-500">Livraison</span>
+                  <span className={`font-semibold ${shipping === 0 ? "text-green-600" : ""}`}>
+                    {shipping === 0 ? "Gratuit" : `${shipping.toLocaleString("fr-FR")} GNF`}
+                  </span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-500">TVA (20%)</span>
+                  <span className="font-semibold">
+                    {((subtotal - discount) * 0.2).toFixed(2)} GNF
+                  </span>
+                </div>
+                <div className="border-t border-gray-100 pt-2.5 flex justify-between">
+                  <span className="font-black text-gray-900">Total</span>
+                  <span className="font-black text-xl text-[#137fec]">
+                    {(subtotal + shipping - discount + (subtotal - discount) * 0.2).toFixed(2)} GNF
+                  </span>
+                </div>
+              </div>
+
+              <button
+                onClick={() => navigate("/confirmation")}
+                className="mt-5 w-full bg-[#137fec] hover:bg-[#0a6fd4] text-white font-bold py-3.5 rounded-xl transition-all hover:shadow-lg hover:shadow-[#137fec]/30 flex items-center justify-center gap-2"
+              >
+                <Lock className="w-4 h-4" />
+                Finaliser la commande
+              </button>
+
+              {/* Trust */}
+              <div className="mt-4 flex items-center justify-center gap-1.5 text-xs text-gray-400">
+                <Lock className="w-3.5 h-3.5" />
+                <span>Paiement sécurisé 256-bit SSL</span>
+              </div>
+
+              <div className="flex items-center justify-center gap-2 mt-3 flex-wrap text-xs text-gray-500">
+                <span className="bg-gray-100 px-2 py-0.5 rounded font-medium">Cash</span>
+                <span className="bg-gray-100 px-2 py-0.5 rounded font-medium">Mobile money</span>
+                <span className="bg-gray-100 px-2 py-0.5 rounded font-medium">Carte bancaire</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <Footer />
+    </div>
+  );
+}
