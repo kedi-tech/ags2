@@ -2,6 +2,10 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
+import { loginClient, registerClient } from "@/api/clients";
+import { createOrder } from "@/api/orders";
+import { useCart } from "@/context/CartContext";
+import { useAuth } from "@/context/AuthContext";
 import {
   CreditCard,
   Truck,
@@ -14,26 +18,13 @@ import {
 
 const steps = ["Livraison", "Paiement", "Révision"];
 
-const orderItems = [
-  {
-    name: "Casque Audio Premium",
-    price: 299,
-    qty: 1,
-    image: "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=100&q=80",
-  },
-  {
-    name: "Montre Series 7",
-    price: 449,
-    qty: 1,
-    image: "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=100&q=80",
-  },
-];
-
 type PaymentMethod = "cash" | "mobile" | "card";
 
 export default function CheckoutPage() {
   const navigate = useNavigate();
-  const [currentStep] = useState(2);
+  const { client, token, loginWithToken } = useAuth();
+  const { items: cartItems, clearCart } = useCart();
+  const currentStep = client ? 3 : 2;
   const [selectedShipping, setSelectedShipping] = useState("standard");
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
   const [promoCode, setPromoCode] = useState("");
@@ -41,6 +32,9 @@ export default function CheckoutPage() {
   const [form, setForm] = useState({
     firstName: "",
     lastName: "",
+    email: "",
+    phone: "",
+    password: "",
     address: "",
     city: "",
     state: "",
@@ -49,16 +43,114 @@ export default function CheckoutPage() {
     expiry: "",
     cvv: "",
   });
+  const [finalizing, setFinalizing] = useState(false);
 
-  const subtotal = 748;
-  const shipping = selectedShipping === "express" ? 15 : 0;
-  const discount = promoApplied ? 48.16 : 0;
-  const tax = Math.round((subtotal - discount) * 0.08 * 100) / 100;
+  const subtotal = cartItems.reduce(
+    (sum, item) => sum + item.price * item.quantity,
+    0
+  );
+  const shipping = selectedShipping === "express" ? 15000 : 0;
+  const discount = promoApplied ? subtotal * 0.1 : 0;
+  const tax = Math.round((subtotal - discount) * 0.2 * 100) / 100;
   const total = subtotal + shipping - discount + tax;
 
   const handleApplyPromo = () => {
     if (promoCode.toUpperCase() === "AGS10") {
       setPromoApplied(true);
+    }
+  };
+
+  const handleFinalizeOrder = async () => {
+    try {
+      if (finalizing) return;
+      setFinalizing(true);
+
+      if (cartItems.length === 0) {
+        alert("Votre panier est vide. Ajoutez des produits avant de valider la commande.");
+        return;
+      }
+
+      if (!client) {
+        alert(
+          "Pour finaliser votre commande, veuillez d'abord vous connecter ou créer un compte."
+        );
+        navigate("/compte");
+        return;
+      }
+
+      if (!token) {
+        alert(
+          "Votre session a expiré. Veuillez vous reconnecter avant de finaliser la commande."
+        );
+        navigate("/compte");
+        return;
+      }
+
+      // At this point, client is registered/logged in; on crée la commande côté backend.
+      const orderResponse = await createOrder(token, {
+        clientId: client.id,
+        items: cartItems.map((item) => ({
+          productId: item.id,
+          quantity: item.quantity,
+          price: item.price,
+          ...(item.variant
+            ? (() => {
+                const parts = String(item.variant)
+                  .split("/")
+                  .map((p) => p.trim())
+                  .filter(Boolean);
+                return {
+                  color: parts[0] || "",
+                  size: parts[1] || "",
+                };
+              })()
+            : { color: "", size: "" }),
+        })),
+        total,
+        paymentMethod,
+        address: client.address,
+      });
+
+      const orderNumber =
+        orderResponse?.code ||
+        orderResponse?.id ||
+        `ORD-${Math.floor(10000000 + Math.random() * 90000000)}`;
+
+      const orderSummary = {
+        orderNumber,
+        items: cartItems.map((item) => ({
+          id: item.id,
+          name: item.name,
+          image: item.image,
+          quantity: item.quantity,
+          price: item.price,
+        })),
+        totals: {
+          subtotal,
+          discount,
+          shipping,
+          tax,
+          total,
+        },
+        buyer: {
+          name: client.name,
+          email: client.email,
+          phone: client.phone,
+          address: client.address,
+          city: "",
+          state: "",
+          postalCode: "",
+        },
+        paymentMethod,
+      };
+
+      clearCart();
+      navigate("/confirmation", { state: orderSummary });
+    } catch (error) {
+      console.error("Checkout error", error);
+      alert("Une erreur est survenue lors de la validation de votre commande.");
+    } finally {
+      setFinalizing(false);
     }
   };
 
@@ -119,31 +211,52 @@ export default function CheckoutPage() {
                 <span className="w-7 h-7 bg-[#137fec]/10 text-[#137fec] rounded-lg flex items-center justify-center text-sm font-bold">1</span>
                 Informations de livraison
               </h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {[
-                  { key: "firstName", label: "Prénom", placeholder: "Jean" },
-                  { key: "lastName", label: "Nom", placeholder: "Dupont" },
-                  { key: "address", label: "Adresse", placeholder: "123 Rue de la Paix", className: "sm:col-span-2" },
-                  { key: "city", label: "Ville", placeholder: "Paris" },
-                  { key: "state", label: "Région", placeholder: "Île-de-France" },
-                  { key: "postalCode", label: "Code postal", placeholder: "75001" },
-                ].map((field) => (
-                  <div key={field.key} className={(field as any).className || ""}>
-                    <label className="block text-xs font-semibold text-gray-600 mb-1.5">{field.label}</label>
-                    <input
-                      type="text"
-                      value={form[field.key as keyof typeof form]}
-                      onChange={(e) => setForm({ ...form, [field.key]: e.target.value })}
-                      placeholder={field.placeholder}
-                      className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#137fec]/30 focus:border-[#137fec] transition-all"
-                    />
+
+              {client ? (
+                <div className="space-y-3 text-sm text-gray-700">
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold">Nom complet</span>
+                    <span>{client.name}</span>
                   </div>
-                ))}
-              </div>
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold">Email</span>
+                    <span>{client.email}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold">Téléphone</span>
+                    <span>{client.phone}</span>
+                  </div>
+                  <div className="flex items-start justify-between gap-4">
+                    <span className="font-semibold mt-0.5">Adresse</span>
+                    <span className="text-right">
+                      {client.address}
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-2">
+                    Vous êtes connecté. Vos informations seront utilisées pour cette commande.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3 text-sm text-gray-700">
+                  <p className="text-gray-600">
+                    Pour continuer la livraison et le paiement, vous devez être connecté à votre compte AGS.
+                  </p>
+                  <button
+                    onClick={() => navigate("/compte")}
+                    className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-[#137fec] hover:bg-[#0a6fd4] text-white text-sm font-semibold transition-all hover:shadow-md"
+                  >
+                    Se connecter ou créer un compte
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                  <p className="text-xs text-gray-400">
+                    Une fois connecté, revenez sur cette page pour finaliser votre commande.
+                  </p>
+                </div>
+              )}
             </div>
 
             {/* Shipping method */}
-            <div className="bg-white rounded-2xl border border-gray-100 p-6">
+            {/* <div className="bg-white rounded-2xl border border-gray-100 p-6">
               <h2 className="text-lg font-black text-[#101922] mb-5 flex items-center gap-2">
                 <span className="w-7 h-7 bg-[#137fec]/10 text-[#137fec] rounded-lg flex items-center justify-center text-sm font-bold">2</span>
                 Mode de livraison
@@ -180,7 +293,7 @@ export default function CheckoutPage() {
                   </label>
                 ))}
               </div>
-            </div>
+            </div> */}
 
             {/* Payment method */}
             <div className="bg-white rounded-2xl border border-gray-100 p-6">
@@ -194,7 +307,7 @@ export default function CheckoutPage() {
                 {([
                   { id: "cash" as PaymentMethod, label: "Cash" },
                   { id: "mobile" as PaymentMethod, label: "Mobile money" },
-                  { id: "card" as PaymentMethod, label: "Carte bancaire" },
+                  // { id: "card" as PaymentMethod, label: "Carte bancaire" },
                 ]).map((tab) => (
                   <button
                     key={tab.id}
@@ -282,17 +395,17 @@ export default function CheckoutPage() {
 
               {/* Items */}
               <div className="space-y-3 mb-4">
-                {orderItems.map((item) => (
-                  <div key={item.name} className="flex items-center gap-3">
+                {cartItems.map((item) => (
+                  <div key={item.id} className="flex items-center gap-3">
                     <div className="w-12 h-12 rounded-lg overflow-hidden bg-[#f6f7f8] flex-shrink-0">
                       <img src={item.image} alt={item.name} className="w-full h-full object-cover" />
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-xs font-semibold text-gray-800 line-clamp-1">{item.name}</p>
-                      <p className="text-xs text-gray-400">Qté: {item.qty}</p>
+                      <p className="text-xs text-gray-400">Qté: {item.quantity}</p>
                     </div>
                     <p className="text-sm font-bold text-gray-800 flex-shrink-0">
-                      {item.price.toLocaleString("fr-FR")} GNF
+                      {(item.price * item.quantity).toLocaleString("fr-FR")} GNF
                     </p>
                   </div>
                 ))}
@@ -351,23 +464,27 @@ export default function CheckoutPage() {
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-500">TVA (20%)</span>
                   <span className="font-semibold">
-                    {((subtotal - discount) * 0.2).toFixed(2)} GNF
+                    {tax.toFixed(2)} GNF
                   </span>
                 </div>
                 <div className="border-t border-gray-100 pt-2.5 flex justify-between">
                   <span className="font-black text-gray-900">Total</span>
                   <span className="font-black text-xl text-[#137fec]">
-                    {(subtotal + shipping - discount + (subtotal - discount) * 0.2).toFixed(2)} GNF
+                    {total.toFixed(2)} GNF
                   </span>
                 </div>
               </div>
 
               <button
-                onClick={() => navigate("/confirmation")}
-                className="mt-5 w-full bg-[#137fec] hover:bg-[#0a6fd4] text-white font-bold py-3.5 rounded-xl transition-all hover:shadow-lg hover:shadow-[#137fec]/30 flex items-center justify-center gap-2"
+                onClick={handleFinalizeOrder}
+                disabled={finalizing}
+                className="mt-5 w-full bg-[#137fec] hover:bg-[#0a6fd4] disabled:bg-[#9fc9f5] disabled:cursor-not-allowed text-white font-bold py-3.5 rounded-xl transition-all hover:shadow-lg hover:shadow-[#137fec]/30 flex items-center justify-center gap-2"
               >
+                {finalizing && (
+                  <span className="w-4 h-4 border-2 border-white/60 border-t-transparent rounded-full animate-spin" />
+                )}
                 <Lock className="w-4 h-4" />
-                Finaliser la commande
+                {finalizing ? "Validation en cours..." : "Finaliser la commande"}
               </button>
 
               {/* Trust */}

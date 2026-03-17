@@ -1,8 +1,12 @@
-import { useState } from "react";
-import { Link } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
 import ProductCard from "@/components/shared/ProductCard";
+import { getProducts } from "@/api/products";
+import { loginClient, registerClient, updateClientInfos } from "@/api/clients";
+import { useAuth } from "@/context/AuthContext";
+import { useWishlist } from "@/context/WishlistContext";
 import {
   LayoutDashboard,
   Package,
@@ -37,13 +41,6 @@ const orders = [
   { id: "#ORD-44850394", date: "15 Sep 2023", total: "349 000 GNF", status: "Livré", statusType: "delivered" },
 ];
 
-const recommendations = [
-  { id: 30, name: "iPad Pro M4", category: "Tablette", price: 999, image: "https://images.unsplash.com/photo-1544244015-0df4702b5573?w=400&q=80", rating: 4.9, reviews: 456 },
-  { id: 31, name: "Camera Instax Wide", category: "Photo", price: 119, originalPrice: 149, image: "https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?w=400&q=80", rating: 4.6, reviews: 213 },
-  { id: 32, name: "Gaming Mouse Pro", category: "Gaming", price: 79, image: "https://images.unsplash.com/photo-1527814050087-3793815479db?w=400&q=80", rating: 4.7, reviews: 328 },
-  { id: 33, name: "Mechanical Keyboard", category: "Gaming", price: 149, originalPrice: 199, image: "https://images.unsplash.com/photo-1541140532154-b024d705b90a?w=400&q=80", rating: 4.8, reviews: 445 },
-];
-
 const statusConfig: Record<string, { color: string; icon: any }> = {
   delivered: { color: "text-green-700 bg-green-100", icon: CheckCircle },
   processing: { color: "text-blue-700 bg-blue-100", icon: Clock },
@@ -57,191 +54,734 @@ const trackingSteps = [
   { label: "Livrée", done: false },
 ];
 
+type AddressSectionProps = {
+  client: any;
+  token: string | null;
+  updateClient: (patch: Partial<any>) => void;
+};
+
+function AddressSection({ client, token, updateClient }: AddressSectionProps) {
+  const [address, setAddress] = useState<string>(client.address || "");
+  const [saving, setSaving] = useState(false);
+   const [success, setSuccess] = useState(false);
+
+  const handleSave = async () => {
+    if (!address.trim()) return;
+    setSaving(true);
+    try {
+      if (token) {
+        const updated = await updateClientInfos(token, {
+          address: address.trim(),
+        });
+        // If backend returns updated client, prefer it; otherwise just patch locally
+        if (updated && typeof updated === "object") {
+          updateClient(updated as any);
+        } else {
+          updateClient({ address: address.trim() });
+        }
+      } else {
+        updateClient({ address: address.trim() });
+      }
+      setSuccess(true);
+      setTimeout(() => setSuccess(false), 2500);
+    } catch (error) {
+      console.error("Failed to update client address", error);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="bg-white rounded-2xl border border-gray-100 p-6 space-y-4">
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-black text-[#101922]">Adresses</h2>
+      </div>
+
+      <div className="space-y-3">
+        <label className="block text-xs font-semibold text-gray-600 mb-1.5">
+          Adresse principale
+        </label>
+        <textarea
+          value={address}
+          onChange={(e) => setAddress(e.target.value)}
+          rows={3}
+          placeholder="Ex: ALMAMYA KALOUM"
+          className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#137fec]/30 focus:border-[#137fec] resize-none"
+        />
+        <button
+          type="button"
+          onClick={handleSave}
+          disabled={!address.trim() || saving}
+          className="inline-flex items-center justify-center px-4 py-2.5 rounded-xl bg-[#137fec] hover:bg-[#0a6fd4] disabled:bg-[#9fc9f5] disabled:cursor-not-allowed text-white text-xs font-semibold transition-all"
+        >
+          {saving ? "Enregistrement..." : "Enregistrer l'adresse"}
+        </button>
+        {success && (
+          <p className="text-xs text-green-600 font-semibold">
+            Adresse mise à jour avec succès.
+          </p>
+        )}
+      </div>
+
+      <p className="text-xs text-gray-400">
+        Cette adresse sera utilisée pour vos livraisons et provient de votre
+        profil client. Les modifications sont enregistrées localement pour
+        cette session.
+      </p>
+    </div>
+  );
+}
+
 export default function AccountPage() {
   const [activeSection, setActiveSection] = useState("overview");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [authTab, setAuthTab] = useState<"login" | "register">("login");
+  const [authForm, setAuthForm] = useState({
+    name: "",
+    email: "",
+    password: "",
+    phone: "",
+    address: "",
+  });
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [authLoading, setAuthLoading] = useState(false);
+  const { client, token, loginWithToken, logout, updateClient } = useAuth();
+  const navigate = useNavigate();
+  const [recommended, setRecommended] = useState<any[]>([]);
+  const [recommendedLoading, setRecommendedLoading] = useState(false);
+
+  const displayName =
+    (client &&
+      (client.name ||
+        (client as any).fullName ||
+        (client as any).full_name ||
+        (client as any).username ||
+        client.email)) ||
+    "Invité";
+
+  const initials = displayName
+    .split(" ")
+    .map((part) => part[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+
+  const handleAuthSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthError(null);
+    setAuthLoading(true);
+
+    try {
+      if (authTab === "login") {
+        const data = await loginClient(authForm.email, authForm.password);
+        const token = (data as any).token;
+        if (!token) {
+          setAuthError("Réponse de connexion invalide (token manquant).");
+          return;
+        }
+        await loginWithToken(token);
+        navigate("/compte");
+      } else {
+        if (!authForm.name || !authForm.email || !authForm.password || !authForm.address) {
+          setAuthError(
+            "Veuillez renseigner votre nom, email, mot de passe et adresse."
+          );
+          return;
+        }
+
+        const data = await registerClient({
+          name: authForm.name,
+          type: "INDIVIDUAL",
+          email: authForm.email,
+          password: authForm.password,
+          phone: authForm.phone,
+          address: authForm.address,
+        });
+        const token = (data as any).token;
+        if (!token) {
+          setAuthError("Réponse d'inscription invalide (token manquant).");
+          return;
+        }
+        await loginWithToken(token);
+        navigate("/compte");
+      }
+    } catch (err: any) {
+      if (err.status === 409) {
+        setAuthError("Un compte existe déjà avec cet email. Essayez de vous connecter.");
+      } else if (err.status === 401) {
+        setAuthError("Email ou mot de passe incorrect.");
+      } else {
+        setAuthError("Une erreur est survenue. Veuillez réessayer.");
+      }
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  const clientOrders: any[] = Array.isArray((client as any)?.orders)
+    ? (client as any).orders
+    : [];
+  const ordersCount = clientOrders.length;
+  const { items: wishlistItems } = useWishlist();
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadRecommended = async () => {
+      try {
+        setRecommendedLoading(true);
+        const data = await getProducts();
+        if (cancelled) return;
+        const list = (data || []) as any[];
+        const sorted = list
+          .slice()
+          .sort(
+            (a, b) =>
+              new Date(b.createdAt).getTime() -
+              new Date(a.createdAt).getTime()
+          )
+          .slice(0, 4)
+          .map((p) => {
+            const firstImageUrl =
+              p.images && p.images.length > 0 ? p.images[0].url : undefined;
+            return {
+              id: p.id,
+              name: p.name,
+              category: p.category?.name ?? "Produits",
+              price: p.price ?? 0,
+              image:
+                firstImageUrl ||
+                p.imageUrl ||
+                "https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=400&q=80",
+            };
+          });
+        setRecommended(sorted);
+      } catch (error) {
+        console.error("Failed to load recommended products", error);
+      } finally {
+        if (!cancelled) setRecommendedLoading(false);
+      }
+    };
+    loadRecommended();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   return (
     <div className="min-h-screen bg-[#f6f7f8]">
       <Header />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-          {/* Sidebar */}
-          <div className="lg:col-span-1">
-            <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
-              {/* Profile */}
-              <div className="bg-gradient-to-r from-[#137fec] to-[#0a5fb8] p-6 text-white">
-                <div className="w-14 h-14 bg-white/20 rounded-full flex items-center justify-center text-2xl font-black mb-3">
-                  JD
-                </div>
-                <p className="font-black text-lg">Jean Dupont</p>
-                <p className="text-white/70 text-sm">jean.dupont@email.com</p>
-                <span className="inline-block mt-2 text-xs font-bold bg-amber-400 text-amber-900 px-2.5 py-1 rounded-full">
-                  ⭐ Membre Premium
-                </span>
-              </div>
-
-              {/* Nav */}
-              <nav className="p-3">
-                {sidebarLinks.map((link) => (
+        {!client && (
+          <div className="max-w-xl mx-auto mb-10">
+            <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
+              <div className="flex mb-4 border border-gray-200 rounded-xl overflow-hidden">
+                {[
+                  { id: "login", label: "Se connecter" },
+                  { id: "register", label: "Créer un compte" },
+                ].map((tab) => (
                   <button
-                    key={link.id}
-                    onClick={() => setActiveSection(link.id)}
-                    className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium transition-all mb-1 group ${
-                      activeSection === link.id
-                        ? "bg-[#137fec]/10 text-[#137fec]"
-                        : "text-gray-600 hover:bg-gray-50 hover:text-gray-800"
+                    key={tab.id}
+                    onClick={() => {
+                      setAuthTab(tab.id as "login" | "register");
+                      setAuthError(null);
+                    }}
+                    className={`flex-1 py-2.5 text-sm font-semibold transition-all ${
+                      authTab === tab.id
+                        ? "bg-[#137fec] text-white"
+                        : "text-gray-500 hover:bg-gray-50"
                     }`}
                   >
-                    <span className="flex items-center gap-3">
-                      <link.icon className={`w-4 h-4 ${activeSection === link.id ? "text-[#137fec]" : "text-gray-400 group-hover:text-gray-600"}`} />
-                      {link.label}
-                    </span>
-                    <ChevronRight className="w-3.5 h-3.5 opacity-30" />
+                    {tab.label}
                   </button>
                 ))}
+              </div>
 
-                <hr className="my-2 border-gray-100" />
+              <form onSubmit={handleAuthSubmit} className="space-y-4">
+                {authTab === "register" && (
+                  <input
+                    type="text"
+                    value={authForm.name}
+                    onChange={(e) => setAuthForm({ ...authForm, name: e.target.value })}
+                    placeholder="Nom complet"
+                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#137fec]/30 focus:border-[#137fec]"
+                  />
+                )}
+                <input
+                  type="email"
+                  value={authForm.email}
+                  onChange={(e) => setAuthForm({ ...authForm, email: e.target.value })}
+                  placeholder="Email"
+                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#137fec]/30 focus:border-[#137fec]"
+                />
+                <input
+                  type="password"
+                  value={authForm.password}
+                  onChange={(e) => setAuthForm({ ...authForm, password: e.target.value })}
+                  placeholder="Mot de passe"
+                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#137fec]/30 focus:border-[#137fec]"
+                />
+                {authTab === "register" && (
+                  <>
+                    <input
+                      type="text"
+                      value={authForm.phone}
+                      onChange={(e) => setAuthForm({ ...authForm, phone: e.target.value })}
+                      placeholder="Téléphone"
+                      className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#137fec]/30 focus:border-[#137fec]"
+                    />
+                    <input
+                      type="text"
+                      value={authForm.address}
+                      onChange={(e) => setAuthForm({ ...authForm, address: e.target.value })}
+                      placeholder="Adresse"
+                      className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#137fec]/30 focus:border-[#137fec]"
+                    />
+                  </>
+                )}
 
-                <Link
-                  to="/"
-                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-red-400 hover:bg-red-50 hover:text-red-600 transition-colors"
+                {authError && (
+                  <p className="text-xs text-red-500">{authError}</p>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={authLoading}
+                  className="w-full bg-[#137fec] hover:bg-[#0a6fd4] disabled:bg-[#9fc9f5] disabled:cursor-not-allowed text-white font-bold py-2.5 rounded-xl text-sm transition-all flex items-center justify-center gap-2"
                 >
-                  <LogOut className="w-4 h-4" />
-                  Se déconnecter
-                </Link>
-              </nav>
+                  {authLoading && (
+                    <span className="w-4 h-4 border-2 border-white/60 border-t-transparent rounded-full animate-spin" />
+                  )}
+                  {authTab === "login"
+                    ? authLoading
+                      ? "Connexion..."
+                      : "Se connecter"
+                    : authLoading
+                    ? "Création du compte..."
+                    : "Créer un compte"}
+                </button>
+              </form>
             </div>
           </div>
+        )}
 
-          {/* Main content */}
-          <div className="lg:col-span-3 space-y-5">
-            {/* Overview */}
-            {activeSection === "overview" && (
-              <>
-                {/* Welcome card */}
-                <div className="bg-white rounded-2xl border border-gray-100 p-6">
-                  <h2 className="text-xl font-black text-[#101922] mb-1">Bonjour, Jean ! 👋</h2>
-                  <p className="text-gray-500 text-sm">Voici un aperçu de votre activité récente.</p>
-
-                  <div className="grid grid-cols-3 gap-4 mt-5">
-                    {[
-                      { label: "Commandes", value: "12", icon: Package, color: "text-[#137fec] bg-[#137fec]/10" },
-                      { label: "Souhaits", value: "8", icon: Heart, color: "text-red-500 bg-red-50" },
-                      { label: "Points fidélité", value: "2,450", icon: Star, color: "text-amber-500 bg-amber-50" },
-                    ].map((stat) => (
-                      <div key={stat.label} className="bg-[#f6f7f8] rounded-xl p-4 text-center">
-                        <div className={`w-10 h-10 ${stat.color} rounded-xl flex items-center justify-center mx-auto mb-2`}>
-                          <stat.icon className="w-5 h-5" />
-                        </div>
-                        <p className="text-xl font-black text-gray-800">{stat.value}</p>
-                        <p className="text-xs text-gray-500">{stat.label}</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Recent order */}
-                <div className="bg-white rounded-2xl border border-gray-100 p-6">
-                  <div className="flex items-center justify-between mb-5">
-                    <h2 className="text-lg font-black text-[#101922]">Commande récente</h2>
-                    <Link to="#" className="text-xs font-semibold text-[#137fec] hover:underline flex items-center gap-1">
-                      Suivre le colis <ChevronRight className="w-3.5 h-3.5" />
-                    </Link>
-                  </div>
-
-                  {/* Tracking */}
-                  <div className="flex items-center justify-between mb-5 relative">
-                    <div className="absolute top-4 left-4 right-4 h-0.5 bg-gray-200" />
-                    <div className="absolute top-4 left-4 h-0.5 bg-[#137fec]" style={{ width: "50%" }} />
-                    {trackingSteps.map((step, idx) => (
-                      <div key={idx} className="flex flex-col items-center gap-1.5 relative z-10">
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center ${step.done ? "bg-[#137fec] text-white" : "bg-gray-100 text-gray-300"}`}>
-                          {step.done ? <CheckCircle className="w-4 h-4" /> : <div className="w-2 h-2 bg-gray-300 rounded-full" />}
-                        </div>
-                        <p className={`text-xs font-medium ${step.done ? "text-gray-700" : "text-gray-300"}`}>{step.label}</p>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Order item */}
-                  <div className="flex items-center gap-4 bg-[#f6f7f8] rounded-xl p-3">
-                    <img src="https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=100&q=80" alt="" className="w-14 h-14 rounded-xl object-cover" />
-                    <div className="flex-1">
-                      <p className="text-sm font-bold text-gray-800">Casque Audio Premium</p>
-                      <p className="text-xs text-gray-400">Commande #ORD-88294710 · 15 Jan 2024</p>
-                      <p className="text-xs text-[#137fec] font-semibold mt-1">En route — Livraison prévue le 18 Jan</p>
-                    </div>
-                    <p className="text-sm font-black text-gray-900">299&nbsp;000 GNF</p>
-                  </div>
-                </div>
-              </>
-            )}
-
-            {/* Orders section */}
-            {(activeSection === "overview" || activeSection === "orders") && (
+        {client && (
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+            {/* Sidebar */}
+            <div className="lg:col-span-1">
               <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
-                <div className="p-6 pb-0">
-                  <h2 className="text-lg font-black text-[#101922]">Historique des commandes</h2>
+                {/* Profile */}
+                <div className="bg-gradient-to-r from-[#137fec] to-[#0a5fb8] p-6 text-white">
+                  <div className="w-14 h-14 bg-white/20 rounded-full flex items-center justify-center text-2xl font-black mb-3">
+                    {initials}
+                  </div>
+                  <p className="font-black text-lg">{displayName}</p>
+                  <p className="text-white/70 text-sm">
+                    {client.email || "—"}
+                  </p>
+                  <span className="inline-block mt-2 text-xs font-bold bg-amber-400 text-amber-900 px-2.5 py-1 rounded-full">
+                    ⭐ Client AGS
+                  </span>
                 </div>
 
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead>
-                      <tr className="border-b border-gray-100">
-                        {["ID commande", "Date", "Total", "Statut", ""].map((col) => (
-                          <th key={col} className="text-left text-xs font-bold text-gray-400 uppercase tracking-wider px-6 py-4">
-                            {col}
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {orders.map((order) => {
-                        const config = statusConfig[order.statusType];
-                        const StatusIcon = config.icon;
-                        return (
-                          <tr key={order.id} className="border-b border-gray-50 hover:bg-[#f6f7f8] transition-colors">
-                            <td className="px-6 py-4 text-sm font-bold text-[#137fec]">{order.id}</td>
-                            <td className="px-6 py-4 text-sm text-gray-600">{order.date}</td>
-                            <td className="px-6 py-4 text-sm font-bold text-gray-800">{order.total}</td>
-                            <td className="px-6 py-4">
-                              <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full ${config.color}`}>
-                                <StatusIcon className="w-3 h-3" />
-                                {order.status}
-                              </span>
-                            </td>
-                            <td className="px-6 py-4">
-                              <Link to={`/produit/1`} className="text-xs font-semibold text-[#137fec] hover:underline">
-                                Voir détails
-                              </Link>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
+                {/* Nav */}
+                <nav className="p-3">
+                  {sidebarLinks.map((link) => (
+                    <button
+                      key={link.id}
+                      onClick={() => setActiveSection(link.id)}
+                      className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium transition-all mb-1 group ${
+                        activeSection === link.id
+                          ? "bg-[#137fec]/10 text-[#137fec]"
+                          : "text-gray-600 hover:bg-gray-50 hover:text-gray-800"
+                      }`}
+                    >
+                      <span className="flex items-center gap-3">
+                        <link.icon
+                          className={`w-4 h-4 ${
+                            activeSection === link.id
+                              ? "text-[#137fec]"
+                              : "text-gray-400 group-hover:text-gray-600"
+                          }`}
+                        />
+                        {link.label}
+                      </span>
+                      <ChevronRight className="w-3.5 h-3.5 opacity-30" />
+                    </button>
+                  ))}
 
-                <div className="p-6">
-                  <button className="w-full py-2.5 border-2 border-gray-200 rounded-xl text-sm font-semibold text-gray-600 hover:border-[#137fec] hover:text-[#137fec] transition-all">
-                    Charger plus
+                  <hr className="my-2 border-gray-100" />
+
+                  <button
+                    onClick={() => {
+                      logout();
+                      navigate("/");
+                    }}
+                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-red-400 hover:bg-red-50 hover:text-red-600 transition-colors"
+                  >
+                    <LogOut className="w-4 h-4" />
+                    Se déconnecter
                   </button>
-                </div>
+                </nav>
               </div>
-            )}
+            </div>
+
+            {/* Main content */}
+            <div className="lg:col-span-3 space-y-5">
+              {/* Overview */}
+              {activeSection === "overview" && (
+                <>
+                  {/* Welcome & account info */}
+                  <div className="bg-white rounded-2xl border border-gray-100 p-6">
+                    <h2 className="text-xl font-black text-[#101922] mb-1">
+                      Bonjour, {displayName} 👋
+                    </h2>
+                    <p className="text-gray-500 text-sm">
+                      Voici un aperçu de votre compte AGS.
+                    </p>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-5">
+                      <div className="bg-[#f6f7f8] rounded-xl p-4">
+                        <p className="text-xs font-semibold text-gray-500 mb-1">
+                          Email
+                        </p>
+                        <p className="text-sm font-medium text-gray-800 break-all">
+                          {client.email || "—"}
+                        </p>
+                      </div>
+                      <div className="bg-[#f6f7f8] rounded-xl p-4">
+                        <p className="text-xs font-semibold text-gray-500 mb-1">
+                          Téléphone
+                        </p>
+                        <p className="text-sm font-medium text-gray-800">
+                          {(client as any).phone || "—"}
+                        </p>
+                      </div>
+                      <div className="bg-[#f6f7f8] rounded-xl p-4">
+                        <p className="text-xs font-semibold text-gray-500 mb-1">
+                          Adresse
+                        </p>
+                        <p className="text-sm font-medium text-gray-800 line-clamp-2">
+                          {(client as any).address || "—"}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-4 mt-5">
+                      <div className="bg-[#f6f7f8] rounded-xl p-4 text-center">
+                        <div className="w-10 h-10 text-[#137fec] bg-[#137fec]/10 rounded-xl flex items-center justify-center mx-auto mb-2">
+                          <Package className="w-5 h-5" />
+                        </div>
+                        <p className="text-xl font-black text-gray-800">
+                          {ordersCount}
+                        </p>
+                        <p className="text-xs text-gray-500">Commandes</p>
+                      </div>
+                      <div className="bg-[#f6f7f8] rounded-xl p-4 text-center">
+                        <div className="w-10 h-10 text-red-500 bg-red-50 rounded-xl flex items-center justify-center mx-auto mb-2">
+                          <Heart className="w-5 h-5" />
+                        </div>
+                        <p className="text-xl font-black text-gray-800">
+                          {wishlistItems.length}
+                        </p>
+                        <p className="text-xs text-gray-500">Souhaits</p>
+                      </div>
+                      <div className="bg-[#f6f7f8] rounded-xl p-4 text-center">
+                        <div className="w-10 h-10 text-amber-500 bg-amber-50 rounded-xl flex items-center justify-center mx-auto mb-2">
+                          <Star className="w-5 h-5" />
+                        </div>
+                        <p className="text-xl font-black text-gray-800">
+                          {ordersCount > 0 ? "Actif" : "Nouveau"}
+                        </p>
+                        <p className="text-xs text-gray-500">Statut client</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Recent order (dynamic if available) */}
+                  <div className="bg-white rounded-2xl border border-gray-100 p-6">
+                    <div className="flex items-center justify-between mb-5">
+                      <h2 className="text-lg font-black text-[#101922]">
+                        Commande récente
+                      </h2>
+                      {ordersCount > 0 && (
+                        <Link
+                          to="#"
+                          className="text-xs font-semibold text-[#137fec] hover:underline flex items-center gap-1"
+                        >
+                          Voir tout l'historique
+                          <ChevronRight className="w-3.5 h-3.5" />
+                        </Link>
+                      )}
+                    </div>
+
+                    {ordersCount === 0 ? (
+                      <div className="bg-[#f6f7f8] rounded-xl p-4 text-sm text-gray-600">
+                        Vous n'avez pas encore passé de commande. Votre prochaine
+                        commande apparaîtra ici.
+                      </div>
+                    ) : (
+                      (() => {
+                        const lastOrder = clientOrders[0];
+                        const createdAt = lastOrder.createdAt || lastOrder.date;
+                        const total = lastOrder.total ?? lastOrder.amount;
+                        const status = lastOrder.status || "Enregistrée";
+                        const items = Array.isArray(lastOrder.items)
+                          ? lastOrder.items
+                          : [];
+                        const firstItem = items[0];
+
+                        return (
+                          <div className="flex items-center gap-4 bg-[#f6f7f8] rounded-xl p-3">
+                            {firstItem?.image ? (
+                              <img
+                                src={firstItem.image}
+                                alt={firstItem.name || "Produit"}
+                                className="w-14 h-14 rounded-xl object-cover"
+                              />
+                            ) : (
+                              <div className="w-14 h-14 rounded-xl bg-gray-200 flex items-center justify-center text-xs text-gray-500">
+                                AGS
+                              </div>
+                            )}
+                            <div className="flex-1">
+                              <p className="text-sm font-bold text-gray-800 line-clamp-2">
+                                {firstItem?.name || "Commande AGS"}
+                              </p>
+                              <p className="text-xs text-gray-400">
+                                #{lastOrder.id ?? lastOrder.code ?? "—"}
+                                {createdAt && ` · ${new Date(createdAt).toLocaleString()}`}
+                              </p>
+                              <p className="text-xs text-[#137fec] font-semibold mt-1">
+                                {status}
+                              </p>
+                            </div>
+                            {typeof total === "number" && (
+                              <p className="text-sm font-black text-gray-900">
+                                {total.toLocaleString("fr-FR")} GNF
+                              </p>
+                            )}
+                          </div>
+                        );
+                      })()
+                    )}
+                  </div>
+                </>
+              )}
+
+              {/* Orders section (dynamic from client.orders) */}
+              {(activeSection === "overview" || activeSection === "orders") && (
+                <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+                  <div className="p-6 pb-0">
+                    <h2 className="text-lg font-black text-[#101922]">
+                      Historique des commandes
+                    </h2>
+                    <p className="text-xs text-gray-400 mt-1">
+                      Retrouvez ici toutes les commandes passées avec votre compte.
+                    </p>
+                  </div>
+
+                  {ordersCount === 0 ? (
+                    <div className="p-6 text-sm text-gray-600">
+                      Vous n'avez pas encore de commandes. Commencez vos achats
+                      pour voir apparaître votre historique ici.
+                    </div>
+                  ) : (
+                    <>
+                      <div className="overflow-x-auto">
+                        <table className="w-full">
+                          <thead>
+                            <tr className="border-b border-gray-100">
+                              {["ID commande", "Date", "Total", "Statut"].map(
+                                (col) => (
+                                  <th
+                                    key={col}
+                                    className="text-left text-xs font-bold text-gray-400 uppercase tracking-wider px-6 py-4"
+                                  >
+                                    {col}
+                                  </th>
+                                )
+                              )}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {clientOrders.map((order) => {
+                              const createdAt =
+                                order.createdAt || order.date || order.iat;
+                              const total =
+                                order.total ??
+                                order.amount ??
+                                (Array.isArray(order.items)
+                                  ? order.items.reduce(
+                                      (sum: number, it: any) =>
+                                        sum +
+                                        (it.price || 0) *
+                                          (it.quantity || 1),
+                                      0
+                                    )
+                                  : null);
+                              const status = order.status || "Enregistrée";
+
+                              return (
+                                <tr
+                                  key={order.id}
+                                  className="border-b border-gray-50 hover:bg-[#f6f7f8] transition-colors"
+                                >
+                              <td className="px-6 py-4 text-sm font-bold text-[#137fec]">
+                                {String(order.id).slice(-12)}
+                              </td>
+                                  <td className="px-6 py-4 text-sm text-gray-600">
+                                    {createdAt
+                                      ? new Date(createdAt).toLocaleString()
+                                      : "—"}
+                                  </td>
+                                  <td className="px-6 py-4 text-sm font-bold text-gray-800">
+                                    {typeof total === "number"
+                                      ? `${total.toLocaleString(
+                                          "fr-FR"
+                                        )} GNF`
+                                      : "—"}
+                                  </td>
+                                  <td className="px-6 py-4">
+                                    <span className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full text-blue-700 bg-blue-100">
+                                      {status}
+                                    </span>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+
+              {/* Wishlist section */}
+              {activeSection === "wishlist" && (
+                <div className="bg-white rounded-2xl border border-gray-100 p-6">
+                  <h2 className="text-lg font-black text-[#101922] mb-2">
+                    Liste de souhaits
+                  </h2>
+                  <p className="text-xs text-gray-400 mb-4">
+                    Retrouvez ici les produits que vous avez ajoutés à vos favoris.
+                  </p>
+                  <div className="py-6 text-sm text-gray-600">
+                    Vous n'avez pas encore de produits dans votre liste de souhaits.
+                  </div>
+                </div>
+              )}
+
+              {/* Addresses section */}
+              {activeSection === "addresses" && (
+                <AddressSection client={client} token={token} updateClient={updateClient} />
+              )}
+
+              {/* Payment methods section */}
+              {activeSection === "payment" && (
+                <div className="bg-white rounded-2xl border border-gray-100 p-6">
+                  <h2 className="text-lg font-black text-[#101922] mb-2">
+                    Méthodes de paiement
+                  </h2>
+                  <p className="text-xs text-gray-400 mb-4">
+                    Vous pourrez bientôt enregistrer vos moyens de paiement
+                    préférés ici.
+                  </p>
+                  <div className="py-6 text-sm text-gray-600">
+                    Aucune méthode de paiement enregistrée pour le moment.
+                  </div>
+                </div>
+              )}
+
+              {/* Settings section */}
+              {activeSection === "settings" && (
+                <div className="bg-white rounded-2xl border border-gray-100 p-6 space-y-4">
+                  <h2 className="text-lg font-black text-[#101922] mb-2">
+                    Paramètres du compte
+                  </h2>
+                  <p className="text-xs text-gray-400 mb-4">
+                    Consultez et ajustez les informations principales de votre compte.
+                  </p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-600 mb-1.5">
+                        Nom complet
+                      </label>
+                      <input
+                        type="text"
+                        value={client.name || ""}
+                        readOnly
+                        className="w-full px-4 py-2.5 border border-gray-200 rounded-xl bg-gray-50 text-gray-700 text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-600 mb-1.5">
+                        Email
+                      </label>
+                      <input
+                        type="email"
+                        value={client.email || ""}
+                        readOnly
+                        className="w-full px-4 py-2.5 border border-gray-200 rounded-xl bg-gray-50 text-gray-700 text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-600 mb-1.5">
+                        Téléphone
+                      </label>
+                      <input
+                        type="text"
+                        value={(client as any).phone || ""}
+                        readOnly
+                        className="w-full px-4 py-2.5 border border-gray-200 rounded-xl bg-gray-50 text-gray-700 text-sm"
+                      />
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className="block text-xs font-semibold text-gray-600 mb-1.5">
+                        Adresse
+                      </label>
+                      <textarea
+                        value={(client as any).address || ""}
+                        readOnly
+                        rows={3}
+                        className="w-full px-4 py-2.5 border border-gray-200 rounded-xl bg-gray-50 text-gray-700 text-sm resize-none"
+                      />
+                    </div>
+                  </div>
+                  <p className="text-xs text-gray-400">
+                    Ces informations proviennent de votre profil client chargé via l'API
+                    et ne sont pas encore modifiables depuis cette interface.
+                  </p>
+                </div>
+              )}
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Recommendations */}
         <div className="mt-12">
-          <h2 className="text-2xl font-black text-[#101922] mb-6">Recommandé pour vous</h2>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            {recommendations.map((product) => (
-              <ProductCard key={product.id} {...product} />
-            ))}
-          </div>
+          <h2 className="text-2xl font-black text-[#101922] mb-2">
+            Recommandé pour vous
+          </h2>
+          <p className="text-xs text-gray-500 mb-4">
+            Une sélection de produits récents qui pourraient vous intéresser.
+          </p>
+          {recommendedLoading ? (
+            <div className="py-6 text-sm text-gray-500">
+              Chargement des recommandations...
+            </div>
+          ) : recommended.length === 0 ? (
+            <div className="py-6 text-sm text-gray-500">
+              Aucun produit recommandé pour le moment.
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              {recommended.map((product) => (
+                <ProductCard key={product.id} {...product} />
+              ))}
+            </div>
+          )}
         </div>
       </div>
 

@@ -1,7 +1,10 @@
-import { useState } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
+import { useWishlist } from "@/context/WishlistContext";
+import { useCart } from "@/context/CartContext";
+import { getProducts } from "@/api/products";
 import {
   Heart,
   Share2,
@@ -83,12 +86,6 @@ const wishlistItems = [
   },
 ];
 
-const sidebarRecs = [
-  { id: 40, name: "AirPods Max", price: 549, image: "https://images.unsplash.com/photo-1603351154351-5e2d0600bb77?w=100&q=80" },
-  { id: 41, name: "Apple Watch Ultra 2", price: 799, image: "https://images.unsplash.com/photo-1434494878577-86c23bcb06b9?w=100&q=80" },
-  { id: 42, name: "GoPro Hero 12", price: 349, image: "https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?w=100&q=80" },
-];
-
 const statusBadge = {
   "in-stock": { label: "En stock", color: "bg-green-100 text-green-700" },
   limited: { label: "Stock limité", color: "bg-orange-100 text-orange-700" },
@@ -96,10 +93,81 @@ const statusBadge = {
 };
 
 export default function WishlistPage() {
-  const [activeTab, setActiveTab] = useState<WishlistTab>("wishlist");
-  const [items, setItems] = useState(wishlistItems);
+  const [activeTab, setActiveTab] = React.useState<WishlistTab>("wishlist");
+  const { items, removeItem } = useWishlist();
+  const { addItem } = useCart();
+  const [sidebarRecs, setSidebarRecs] = useState<any[]>([]);
+  const [recsLoading, setRecsLoading] = useState(false);
 
-  const removeItem = (id: number) => setItems(items.filter((i) => i.id !== id));
+  const enrichedItems = useMemo(() => {
+    if (!items.length) return [];
+    // Merge any static metadata if IDs match, otherwise use minimal info
+    return items.map((it) => {
+      const meta = wishlistItems.find((m) => String(m.id) === String(it.id));
+      return {
+        ...meta,
+        id: it.id,
+        name: it.name,
+        price: it.price,
+        image: it.image,
+        category: meta?.category ?? "Produits",
+        originalPrice: meta?.originalPrice,
+        rating: meta?.rating ?? 4.5,
+        status: meta?.status ?? "in-stock",
+        badge: meta?.badge ?? null,
+      };
+    });
+  }, [items]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadRecs = async () => {
+      try {
+        setRecsLoading(true);
+        const data = await getProducts();
+        if (cancelled) return;
+
+        const all: any[] = Array.isArray(data) ? data : [];
+        const wishlistIds = new Set(items.map((it) => String(it.id)));
+
+        const makeCard = (p: any) => {
+          const firstImageUrl =
+            p.images && p.images.length > 0 ? p.images[0].url : undefined;
+          return {
+            id: p.id,
+            name: p.name,
+            price: p.price ?? 0,
+            image:
+              firstImageUrl ||
+              p.imageUrl ||
+              "https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=400&q=80",
+          };
+        };
+
+        const candidates = all.filter(
+          (p) => !wishlistIds.has(String(p.id))
+        );
+
+        const chosen =
+          (candidates.length ? candidates : all)
+            .slice(0, 3)
+            .map(makeCard) || [];
+
+        setSidebarRecs(chosen);
+      } catch (error) {
+        console.error("Failed to load wishlist recommendations", error);
+      } finally {
+        if (!cancelled) setRecsLoading(false);
+      }
+    };
+
+    loadRecs();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [items]);
 
   return (
     <div className="min-h-screen bg-[#f6f7f8]">
@@ -121,8 +189,16 @@ export default function WishlistPage() {
         {/* Tabs */}
         <div className="flex gap-1 bg-white rounded-xl p-1 border border-gray-100 w-fit mb-6">
           {([
-            { id: "wishlist" as WishlistTab, label: "Ma Liste de souhaits", count: items.length },
-            { id: "saved" as WishlistTab, label: "Sauvegardé pour plus tard", count: 3 },
+            {
+              id: "wishlist" as WishlistTab,
+              label: "Ma Liste de souhaits",
+              count: enrichedItems.length,
+            },
+            {
+              id: "saved" as WishlistTab,
+              label: "Sauvegardé pour plus tard",
+              count: 0,
+            },
           ]).map((tab) => (
             <button
               key={tab.id}
@@ -147,7 +223,10 @@ export default function WishlistPage() {
             {/* Controls */}
             <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
               <p className="text-sm text-gray-500 font-medium">
-                <span className="font-black text-gray-800">{items.length} Articles</span>
+                <span className="font-black text-gray-800">
+                  {enrichedItems.length} Article
+                  {enrichedItems.length > 1 ? "s" : ""}
+                </span>
               </p>
               <div className="flex items-center gap-2">
                 <button className="flex items-center gap-1.5 text-xs font-semibold text-gray-600 bg-white border border-gray-200 px-3 py-2 rounded-xl hover:border-gray-300 transition-all">
@@ -159,13 +238,24 @@ export default function WishlistPage() {
             </div>
 
             {/* Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-              {items.map((item) => {
-                const status = statusBadge[item.status as keyof typeof statusBadge];
-                const discount = item.originalPrice
-                  ? Math.round(((item.originalPrice - item.price) / item.originalPrice) * 100)
-                  : null;
-                return (
+            {enrichedItems.length === 0 ? (
+              <div className="py-10 text-sm text-gray-600">
+                Vous n'avez pas encore de produits dans votre liste de souhaits.
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+                {enrichedItems.map((item) => {
+                  const status =
+                    statusBadge[item.status as keyof typeof statusBadge] ??
+                    statusBadge["in-stock"];
+                  const discount = item.originalPrice
+                    ? Math.round(
+                        ((item.originalPrice - item.price) /
+                          item.originalPrice) *
+                          100
+                      )
+                    : null;
+                  return (
                   <div key={item.id} className="bg-white rounded-2xl border border-gray-100 overflow-hidden hover:shadow-lg hover:-translate-y-1 transition-all duration-300 group relative">
                     {/* Remove btn */}
                     <button
@@ -224,45 +314,109 @@ export default function WishlistPage() {
 
                       {/* Actions */}
                       <div className="flex gap-2">
-                        <button className="flex-1 bg-[#137fec] hover:bg-[#0a6fd4] text-white text-xs font-semibold py-2 rounded-xl transition-all flex items-center justify-center gap-1.5">
+                        <button
+                          className="flex-1 bg-[#137fec] hover:bg-[#0a6fd4] text-white text-xs font-semibold py-2 rounded-xl transition-all flex items-center justify-center gap-1.5"
+                          onClick={() =>
+                            addItem({
+                              id: item.id,
+                              name: item.name,
+                              price: item.price,
+                              image: item.image,
+                            })
+                          }
+                        >
                           <ShoppingCart className="w-3.5 h-3.5" />
                           Ajouter au panier
                         </button>
-                        <button className="px-3 py-2 border border-gray-200 rounded-xl hover:border-[#137fec] hover:text-[#137fec] transition-all">
+                        <button
+                          className="px-3 py-2 border border-gray-200 rounded-xl hover:border-[#137fec] hover:text-[#137fec] transition-all"
+                          onClick={() => {
+                            const url = `${window.location.origin}/produit/${item.id}`;
+                            if (navigator.share) {
+                              navigator
+                                .share({
+                                  title: item.name,
+                                  text: "Découvre ce produit sur AGS",
+                                  url,
+                                })
+                                .catch(() => {});
+                            } else if (navigator.clipboard) {
+                              navigator.clipboard.writeText(url).then(
+                                () => {
+                                  alert("Lien du produit copié dans le presse-papiers.");
+                                },
+                                () => {
+                                  alert("Impossible de copier le lien.");
+                                },
+                              );
+                            } else {
+                              alert(url);
+                            }
+                          }}
+                        >
                           <Share2 className="w-3.5 h-3.5 text-gray-400" />
                         </button>
                       </div>
                     </div>
                   </div>
-                );
-              })}
-            </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           {/* Sidebar */}
           <div className="lg:col-span-1 space-y-4">
             {/* Recommendations */}
             <div className="bg-white rounded-2xl border border-gray-100 p-5">
-              <h3 className="text-base font-black text-[#101922] mb-4">Recommandé pour vous</h3>
-              <div className="space-y-3">
-                {sidebarRecs.map((rec) => (
-                  <Link key={rec.id} to={`/produit/${rec.id}`} className="flex items-center gap-3 group">
-                    <div className="w-12 h-12 rounded-xl overflow-hidden bg-[#f6f7f8] flex-shrink-0">
-                      <img src={rec.image} alt={rec.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-semibold text-gray-800 line-clamp-2 group-hover:text-[#137fec] transition-colors">{rec.name}</p>
-                      <p className="text-xs font-bold text-[#137fec] mt-0.5">{rec.price}€</p>
-                      <p className="text-xs font-bold text-[#137fec] mt-0.5">
-                        {rec.price.toLocaleString("fr-FR")} GNF
-                      </p>
-                    </div>
-                  </Link>
-                ))}
-              </div>
-              <button className="mt-4 w-full py-2 text-xs font-semibold text-[#137fec] border border-[#137fec]/30 rounded-xl hover:bg-[#137fec] hover:text-white transition-all">
-                Voir toutes les recommandations
-              </button>
+              <h3 className="text-base font-black text-[#101922] mb-4">
+                Recommandé pour vous
+              </h3>
+              {recsLoading ? (
+                <div className="py-4 text-xs text-gray-500">
+                  Chargement des recommandations...
+                </div>
+              ) : sidebarRecs.length === 0 ? (
+                <div className="py-4 text-xs text-gray-500">
+                  Aucune recommandation disponible pour le moment.
+                </div>
+              ) : (
+                <>
+                  <div className="space-y-3">
+                    {sidebarRecs.map((rec) => (
+                      <Link
+                        key={rec.id}
+                        to={`/produit/${rec.id}`}
+                        className="flex items-center gap-3 group"
+                      >
+                        <div className="w-12 h-12 rounded-xl overflow-hidden bg-[#f6f7f8] flex-shrink-0">
+                          <img
+                            src={rec.image}
+                            alt={rec.name}
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                          />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-semibold text-gray-800 line-clamp-2 group-hover:text-[#137fec] transition-colors">
+                            {rec.name}
+                          </p>
+                          <p className="text-xs font-bold text-[#137fec] mt-0.5">
+                            {rec.price.toLocaleString("fr-FR")} GNF
+                          </p>
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                  <button
+                    className="mt-4 w-full py-2 text-xs font-semibold text-[#137fec] border border-[#137fec]/30 rounded-xl hover:bg-[#137fec] hover:text-white transition-all"
+                    onClick={() =>
+                      window.scrollTo({ top: 0, behavior: "smooth" })
+                    }
+                  >
+                    Voir plus de produits
+                  </button>
+                </>
+              )}
             </div>
 
             {/* Gift widget */}

@@ -4,6 +4,9 @@ import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
 import Breadcrumb from "@/components/shared/Breadcrumb";
 import ProductCard from "@/components/shared/ProductCard";
+import { getCategories } from "@/api/category";
+import { getProducts } from "@/api/products";
+import { getSubCategories } from "@/api/subCategories";
 import {
   SlidersHorizontal,
   Grid3X3,
@@ -15,113 +18,16 @@ import {
   ChevronRight,
 } from "lucide-react";
 
-const PRODUCTS = [
-  {
-    id: 50,
-    name: "MacBook Pro M3 14\"",
-    category: "Ordinateurs",
-    brand: "Apple",
-    processor: "Apple M3",
-    price: 1999,
-    originalPrice: 2299,
-    image: "https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=400&q=80",
-    rating: 4.9,
-    reviews: 876,
-    badge: "Nouvelle Arrivée",
-    badgeColor: "bg-[#137fec]",
-  },
-  {
-    id: 51,
-    name: "Dell XPS 15",
-    category: "Ordinateurs",
-    brand: "Dell",
-    processor: "Intel Core i7",
-    price: 1599,
-    image: "https://images.unsplash.com/photo-1588872657578-7efd1f1555ed?w=400&q=80",
-    rating: 4.7,
-    reviews: 543,
-  },
-  {
-    id: 52,
-    name: "Razer Blade 15",
-    category: "Gaming",
-    brand: "Razer",
-    processor: "AMD Ryzen 9",
-    price: 2299,
-    originalPrice: 2599,
-    image: "https://images.unsplash.com/photo-1525547719571-a2d4ac8945e2?w=400&q=80",
-    rating: 4.8,
-    reviews: 312,
-    badge: "Soldes",
-    badgeColor: "bg-red-500",
-  },
-  {
-    id: 53,
-    name: "Surface Laptop 5",
-    category: "Ordinateurs",
-    brand: "Microsoft",
-    processor: "Intel Core i7",
-    price: 1299,
-    image: "https://images.unsplash.com/photo-1593642632559-0c6d3fc62b89?w=400&q=80",
-    rating: 4.6,
-    reviews: 234,
-  },
-  {
-    id: 54,
-    name: "ASUS ROG Zephyrus",
-    category: "Gaming",
-    brand: "ASUS",
-    processor: "AMD Ryzen 7",
-    price: 1799,
-    originalPrice: 2099,
-    image: "https://images.unsplash.com/photo-1547082299-de196ea013d6?w=400&q=80",
-    rating: 4.8,
-    reviews: 456,
-    badge: "Soldes",
-    badgeColor: "bg-red-500",
-  },
-  {
-    id: 55,
-    name: "Lenovo Yoga 9i",
-    category: "Ordinateurs",
-    brand: "Lenovo",
-    processor: "Intel Core i9",
-    price: 1399,
-    image: "https://images.unsplash.com/photo-1541807084-5c52b6b3adef?w=400&q=80",
-    rating: 4.7,
-    reviews: 189,
-  },
-];
-
-const categoryNames: Record<string, string> = {
-  electronique: "Électronique",
-  ordinateurs: "Ordinateurs Haute Performance",
-  "maison-jardin": "Maison & Jardin",
-  mode: "Mode",
-  jouets: "Jouets",
-  beaute: "Beauté",
-  sport: "Sport",
-  promotions: "Promotions",
-  audio: "Audio & Vidéo",
-  telephones: "Téléphones & Tablettes",
-  wearables: "Wearables",
-};
-
-const slugToProductCategories: Record<string, string[]> = {
-  electronique: ["Ordinateurs", "Gaming"],
-  ordinateurs: ["Ordinateurs"],
-  gaming: ["Gaming"],
-};
-
-const brands = ["Apple", "Dell", "Razer", "Microsoft", "ASUS", "Lenovo", "HP", "Samsung"];
-const processors = ["Intel Core i9", "Intel Core i7", "AMD Ryzen 9", "Apple M3", "AMD Ryzen 7"];
-
 export default function CategoryPage() {
   const { slug = "electronique" } = useParams();
+  const [categoryName, setCategoryName] = useState("Catégorie");
+  const [products, setProducts] = useState<any[]>([]);
+  const [maxPrice, setMaxPrice] = useState(0);
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [sortBy, setSortBy] = useState("popular");
   const [priceRange, setPriceRange] = useState([0, 3000]);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [selectedSubCategory, setSelectedSubCategory] = useState<string | null>(null);
   const [selectedBrands, setSelectedBrands] = useState<string[]>([]);
   const [selectedProcessors, setSelectedProcessors] = useState<string[]>([]);
   const [activeFilters, setActiveFilters] = useState<string[]>([]);
@@ -129,14 +35,149 @@ export default function CategoryPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [filterOpen, setFilterOpen] = useState(false);
 
-  const categoryName = categoryNames[slug] || "Catégorie";
+  useEffect(() => {
+    let isMounted = true;
 
-  const applicableCategories = slugToProductCategories[slug] || [];
+    const loadCategoryProducts = async () => {
+      try {
+        let mappedProducts: any[] = [];
 
-  const baseProducts =
-    applicableCategories.length === 0
-      ? PRODUCTS
-      : PRODUCTS.filter((product) => applicableCategories.includes(product.category));
+        if (slug === "all") {
+          const data = await getProducts();
+          if (!isMounted) return;
+
+          setCategoryName("Tous les produits");
+
+          mappedProducts =
+            (data || []).map((p: any) => {
+              const firstImageUrl =
+                p.images && p.images.length > 0 ? p.images[0].url : undefined;
+
+              return {
+                id: p.id,
+                name: p.name,
+                category: p.category?.name ?? "Produits",
+                subCategory: p.subCategory?.name,
+                brand: p.brand,
+                processor: p.processor,
+                price: p.price ?? 0,
+                originalPrice: p.companyPrice,
+                image:
+                  firstImageUrl ||
+                  p.imageUrl ||
+                  "https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=400&q=80",
+                rating: p.rating ?? 4.5,
+                reviews: p.reviews ?? 0,
+              };
+            }) || [];
+        } else {
+          // First try to match a main category
+          const categoriesData = await getCategories();
+          if (!isMounted) return;
+
+          const activeCategory = (categoriesData || []).find(
+            (cat: any) =>
+              String(cat.id) === slug ||
+              (cat.slug && cat.slug === slug)
+          );
+
+          if (activeCategory) {
+            setCategoryName(activeCategory.name ?? "Catégorie");
+
+            mappedProducts =
+              (activeCategory.products || []).map((p: any) => {
+                const firstImageUrl =
+                  p.images && p.images.length > 0 ? p.images[0].url : undefined;
+
+                return {
+                  id: p.id,
+                  name: p.name,
+                  category: activeCategory.name,
+                    subCategory: p.subCategory?.name,
+                  brand: p.brand,
+                  processor: p.processor,
+                  price: p.price ?? 0,
+                  originalPrice: p.companyPrice,
+                  image:
+                    firstImageUrl ||
+                    p.imageUrl ||
+                    "https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=400&q=80",
+                  rating: p.rating ?? 4.5,
+                  reviews: p.reviews ?? 0,
+                };
+              }) || [];
+          } else {
+            // If no main category matched, try subcategories endpoint
+            const subData = await getSubCategories();
+            if (!isMounted) return;
+
+            const activeSub = (subData || []).find(
+              (sub: any) =>
+                String(sub.id) === slug ||
+                (sub.slug && sub.slug === slug)
+            );
+
+            if (!activeSub) {
+              setCategoryName("Catégorie");
+              setProducts([]);
+              return;
+            }
+
+            setCategoryName(
+              activeSub.name ??
+                (activeSub.category?.name
+                  ? `${activeSub.category.name} · ${activeSub.name}`
+                  : "Catégorie")
+            );
+
+            mappedProducts =
+              (activeSub.products || []).map((p: any) => {
+                const firstImageUrl =
+                  p.images && p.images.length > 0 ? p.images[0].url : undefined;
+
+                return {
+                  id: p.id,
+                  name: p.name,
+                  category:
+                    activeSub.name ??
+                    activeSub.category?.name ??
+                    "Sous-catégorie",
+                  subCategory: activeSub.name,
+                  brand: p.brand,
+                  processor: p.processor,
+                  price: p.price ?? 0,
+                  originalPrice: p.companyPrice,
+                  image:
+                    firstImageUrl ||
+                    p.imageUrl ||
+                    "https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=400&q=80",
+                  rating: p.rating ?? 4.5,
+                  reviews: p.reviews ?? 0,
+                };
+              }) || [];
+          }
+        }
+
+        setProducts(mappedProducts);
+
+        if (mappedProducts.length > 0) {
+          const max = Math.max(...mappedProducts.map((p: any) => p.price || 0));
+          setMaxPrice(max);
+          setPriceRange([0, max]);
+        }
+      } catch (error) {
+        console.error("Failed to load category products", error);
+      }
+    };
+
+    loadCategoryProducts();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [slug]);
+
+  const baseProducts = products;
 
   const categoryFacets = Array.from(
     baseProducts.reduce((map, product) => {
@@ -146,13 +187,42 @@ export default function CategoryPage() {
     }, new Map<string, number>())
   ).map(([name, count]) => ({ name, count }));
 
+  const subCategoryFacets = Array.from(
+    baseProducts.reduce((map, product) => {
+      if (!product.subCategory) return map;
+      const current = map.get(product.subCategory) ?? 0;
+      map.set(product.subCategory, current + 1);
+      return map;
+    }, new Map<string, number>())
+  ).map(([name, count]) => ({ name, count }));
+
+  const brandOptions = Array.from(
+    new Set(
+      baseProducts
+        .map((p) => p.brand as string | undefined)
+        .filter((b): b is string => Boolean(b))
+    )
+  ).sort();
+
+  const processorOptions = Array.from(
+    new Set(
+      baseProducts
+        .map((p) => p.processor as string | undefined)
+        .filter((v): v is string => Boolean(v))
+    )
+  ).sort();
+
   const filteredProducts = baseProducts
     .filter((product) =>
       selectedCategory ? product.category === selectedCategory : true
     )
-    .filter(
-      (product) =>
-        product.price >= priceRange[0] && product.price <= priceRange[1]
+    .filter((product) =>
+      selectedSubCategory ? product.subCategory === selectedSubCategory : true
+    )
+    .filter((product) =>
+      maxPrice > 0
+        ? product.price >= priceRange[0] && product.price <= priceRange[1]
+        : true
     )
     .filter((product) =>
       selectedBrands.length > 0 ? selectedBrands.includes(product.brand) : true
@@ -194,7 +264,16 @@ export default function CategoryPage() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [slug, sortBy, priceRange, selectedBrands, selectedProcessors, minRating]);
+  }, [
+    slug,
+    sortBy,
+    priceRange,
+    selectedBrands,
+    selectedProcessors,
+    minRating,
+    selectedCategory,
+    selectedSubCategory,
+  ]);
 
   const toggleBrand = (brand: string) => {
     setSelectedBrands((prev) =>
@@ -254,6 +333,35 @@ export default function CategoryPage() {
                 ))}
               </div>
 
+              {/* Sub-categories */}
+              {subCategoryFacets.length > 0 && (
+                <div>
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-3">
+                    Sous-catégories
+                  </h3>
+                  {subCategoryFacets.map((sub) => (
+                    <button
+                      key={sub.name}
+                      onClick={() =>
+                        setSelectedSubCategory((current) =>
+                          current === sub.name ? null : sub.name
+                        )
+                      }
+                      className={`w-full flex items-center justify-between py-2 text-sm transition-colors ${
+                        selectedSubCategory === sub.name
+                          ? "text-[#137fec] font-semibold"
+                          : "text-gray-600 hover:text-[#137fec]"
+                      }`}
+                    >
+                      <span>{sub.name}</span>
+                      <span className="text-xs bg-gray-100 text-gray-400 px-2 py-0.5 rounded-full">
+                        {sub.count}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+
               {/* Price range */}
               <div>
                 <h3 className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-3">Prix</h3>
@@ -261,21 +369,25 @@ export default function CategoryPage() {
                   <span>{priceRange[0].toLocaleString("fr-FR")} GNF</span>
                   <span>{priceRange[1].toLocaleString("fr-FR")} GNF</span>
                 </div>
-                <input
-                  type="range"
-                  min={0}
-                  max={5000}
-                  value={priceRange[1]}
-                  onChange={(e) => setPriceRange([priceRange[0], parseInt(e.target.value)])}
-                  className="w-full accent-[#137fec]"
-                />
+                {maxPrice > 0 && (
+                  <input
+                    type="range"
+                    min={0}
+                    max={maxPrice}
+                    value={priceRange[1]}
+                    onChange={(e) =>
+                      setPriceRange([priceRange[0], parseInt(e.target.value)])
+                    }
+                    className="w-full accent-[#137fec]"
+                  />
+                )}
               </div>
 
               {/* Brands */}
               <div>
                 <h3 className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-3">Marques</h3>
                 <div className="space-y-2">
-                  {brands.map((brand) => (
+                  {brandOptions.map((brand) => (
                     <label key={brand} className="flex items-center gap-2.5 cursor-pointer">
                       <input
                         type="checkbox"
@@ -293,7 +405,7 @@ export default function CategoryPage() {
               <div>
                 <h3 className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-3">Processeur</h3>
                 <div className="flex flex-wrap gap-1.5">
-                  {processors.map((proc) => (
+                  {processorOptions.map((proc) => (
                     <button
                       key={proc}
                       onClick={() =>
@@ -314,7 +426,7 @@ export default function CategoryPage() {
               </div>
 
               {/* Rating */}
-              <div>
+              {/* <div>
                 <h3 className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-3">Note minimale</h3>
                 <div className="space-y-2">
                   {[4, 3, 2, 1].map((stars) => (
@@ -339,7 +451,7 @@ export default function CategoryPage() {
                     </label>
                   ))}
                 </div>
-              </div>
+              </div> */}
 
               <button className="w-full py-2.5 bg-[#137fec] text-white font-semibold text-sm rounded-xl hover:bg-[#0a6fd4] transition-colors">
                 Appliquer les filtres
@@ -394,9 +506,17 @@ export default function CategoryPage() {
             </div>
 
             {/* Active filter chips */}
-            {(selectedCategory || selectedBrands.length > 0 || selectedProcessors.length > 0) && (
+            {(selectedCategory ||
+              selectedSubCategory ||
+              selectedBrands.length > 0 ||
+              selectedProcessors.length > 0) && (
               <div className="flex flex-wrap gap-2 mb-4">
-                {[...(selectedCategory ? [selectedCategory] : []), ...selectedBrands, ...selectedProcessors].map((filter) => (
+                {[
+                  ...(selectedCategory ? [selectedCategory] : []),
+                  ...(selectedSubCategory ? [selectedSubCategory] : []),
+                  ...selectedBrands,
+                  ...selectedProcessors,
+                ].map((filter) => (
                   <span
                     key={filter}
                     className="flex items-center gap-1.5 text-xs font-semibold bg-[#137fec]/10 text-[#137fec] px-3 py-1.5 rounded-full"
@@ -406,6 +526,9 @@ export default function CategoryPage() {
                       onClick={() => {
                         if (filter === selectedCategory) {
                           setSelectedCategory(null);
+                        }
+                        if (filter === selectedSubCategory) {
+                          setSelectedSubCategory(null);
                         }
                         setSelectedBrands((prev) => prev.filter((b) => b !== filter));
                         setSelectedProcessors((prev) => prev.filter((p) => p !== filter));
@@ -419,6 +542,7 @@ export default function CategoryPage() {
                 <button
                   onClick={() => {
                     setSelectedCategory(null);
+                    setSelectedSubCategory(null);
                     setSelectedBrands([]);
                     setSelectedProcessors([]);
                   }}

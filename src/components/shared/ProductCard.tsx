@@ -1,6 +1,8 @@
 import { Link } from "react-router-dom";
 import { Heart, ShoppingCart, Star } from "lucide-react";
 import { useState } from "react";
+import { useCart } from "@/context/CartContext";
+import { useWishlist } from "@/context/WishlistContext";
 
 interface ProductCardProps {
   id?: string | number;
@@ -22,23 +24,28 @@ export default function ProductCard({
   category,
   price,
   originalPrice,
-  rating = 4.5,
-  reviews,
+  // rating = 4.5,
+  // reviews,
   badge,
   badgeColor = "bg-[#137fec]",
 }: ProductCardProps) {
-  const [wishlisted, setWishlisted] = useState(false);
   const [addedToCart, setAddedToCart] = useState(false);
+  const { addItem } = useCart();
+  const { items: wishlistItems, toggleItem } = useWishlist();
+
+  const wishlisted = wishlistItems.some((w) => w.id === id);
 
   const handleAddToCart = (e: React.MouseEvent) => {
     e.preventDefault();
+    addItem({
+      id,
+      name,
+      price,
+      image,
+    });
     setAddedToCart(true);
     setTimeout(() => setAddedToCart(false), 1500);
   };
-
-  const discount = originalPrice
-    ? Math.round(((originalPrice - price) / originalPrice) * 100)
-    : null;
 
   return (
     <Link to={`/produit/${id}`} className="group block">
@@ -56,17 +63,17 @@ export default function ProductCard({
               {badge}
             </span>
           )}
-          {discount && (
-            <span className="absolute top-3 left-3 bg-red-500 text-white text-xs font-bold px-2.5 py-1 rounded-full">
-              -{discount}%
-            </span>
-          )}
 
           {/* Wishlist btn */}
           <button
             onClick={(e) => {
               e.preventDefault();
-              setWishlisted(!wishlisted);
+              toggleItem({
+                id,
+                name,
+                price,
+                image,
+              });
             }}
             className="absolute top-3 right-3 w-8 h-8 bg-white rounded-full shadow-md flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all hover:scale-110"
           >
@@ -103,7 +110,7 @@ export default function ProductCard({
           </h3>
 
           {/* Stars */}
-          <div className="flex items-center gap-1.5 mb-3">
+          {/* <div className="flex items-center gap-1.5 mb-3">
             <div className="flex items-center gap-0.5">
               {[1, 2, 3, 4, 5].map((star) => (
                 <Star
@@ -119,18 +126,13 @@ export default function ProductCard({
               ))}
             </div>
             {reviews && <span className="text-xs text-gray-400">({reviews})</span>}
-          </div>
+          </div> */}
 
           {/* Price */}
           <div className="flex items-center gap-2">
             <span className="text-base font-bold text-gray-900">
               {price.toLocaleString("fr-FR")} GNF
             </span>
-            {originalPrice && (
-              <span className="text-sm text-gray-400 line-through">
-                {originalPrice.toLocaleString("fr-FR")} GNF
-              </span>
-            )}
           </div>
         </div>
       </div>

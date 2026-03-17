@@ -1,9 +1,12 @@
-import { useState } from "react";
+import React from "react";
+
 import { Link, useNavigate } from "react-router-dom";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
 import Breadcrumb from "@/components/shared/Breadcrumb";
 import ProductCard from "@/components/shared/ProductCard";
+import { useCart } from "@/context/CartContext";
+import { getProducts } from "@/api/products";
 import {
   Plus,
   Minus,
@@ -18,38 +21,6 @@ import {
   ChevronRight,
 } from "lucide-react";
 
-const cartItems = [
-  {
-    id: 1,
-    name: "Casque Audio Premium",
-    sku: "SKU-CAP-001",
-    variant: "Noir / Standard",
-    price: 299,
-    originalPrice: 349,
-    quantity: 1,
-    image: "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=200&q=80",
-  },
-  {
-    id: 2,
-    name: "Montre Series 7",
-    sku: "SKU-MS7-002",
-    variant: "Argent / 44mm",
-    price: 449,
-    quantity: 1,
-    image: "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=200&q=80",
-  },
-  {
-    id: 3,
-    name: "Enceinte SoundBar Pro",
-    sku: "SKU-ESP-003",
-    variant: "Blanc / 120W",
-    price: 89,
-    originalPrice: 129,
-    quantity: 1,
-    image: "https://images.unsplash.com/photo-1545454675-3531b543be5d?w=200&q=80",
-  },
-];
-
 const recommendations = [
   { id: 10, name: "AirPods Pro 2", category: "Audio", price: 249, image: "https://images.unsplash.com/photo-1600294037681-c80b4cb5b434?w=400&q=80", rating: 4.9, reviews: 892 },
   { id: 11, name: "iPad Air M2", category: "Tablette", price: 699, originalPrice: 799, image: "https://images.unsplash.com/photo-1544244015-0df4702b5573?w=400&q=80", rating: 4.8, reviews: 345 },
@@ -59,23 +30,61 @@ const recommendations = [
 
 export default function CartPage() {
   const navigate = useNavigate();
-  const [items, setItems] = useState(cartItems);
+  const { items, updateQuantity, removeItem } = useCart();
+  const [recommended, setRecommended] = React.useState<any[]>([]);
 
-  const updateQuantity = (id: number, delta: number) => {
-    setItems(items.map((item) =>
-      item.id === id
-        ? { ...item, quantity: Math.max(1, item.quantity + delta) }
-        : item
-    ));
-  };
-
-  const removeItem = (id: number) => {
-    setItems(items.filter((item) => item.id !== id));
-  };
-
-  const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  const subtotal = items.reduce(
+    (sum, item) => sum + item.price * item.quantity,
+    0
+  );
   const tax = Math.round(subtotal * 0.08 * 100) / 100;
   const total = subtotal + tax;
+
+  React.useEffect(() => {
+    let cancelled = false;
+
+    const loadRecommended = async () => {
+      try {
+        const data = await getProducts();
+        if (cancelled) return;
+        const all: any[] = Array.isArray(data) ? data : [];
+        const cartIds = new Set(items.map((it) => String(it.id)));
+
+        const makeCard = (p: any) => {
+          const firstImageUrl =
+            p.images && p.images.length > 0 ? p.images[0].url : undefined;
+          return {
+            id: p.id,
+            name: p.name,
+            category: p.category?.name ?? "Produits",
+            price: p.price ?? 0,
+            image:
+              firstImageUrl ||
+              p.imageUrl ||
+              "https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=400&q=80",
+          };
+        };
+
+        const candidates = all.filter(
+          (p) => !cartIds.has(String(p.id))
+        );
+
+        const chosen =
+          (candidates.length ? candidates : all)
+            .slice(0, 4)
+            .map(makeCard) || [];
+
+        setRecommended(chosen);
+      } catch (error) {
+        console.error("Failed to load cart recommendations", error);
+      }
+    };
+
+    loadRecommended();
+    return () => {
+      cancelled = true;
+    };
+  }, [items]);
 
   return (
     <div className="min-h-screen bg-[#f6f7f8]">
@@ -171,10 +180,10 @@ export default function CartPage() {
 
                         {/* Actions */}
                         <div className="flex items-center gap-1">
-                          <button className="flex items-center gap-1 px-2.5 py-1.5 text-xs text-gray-500 hover:text-[#137fec] hover:bg-[#137fec]/5 rounded-lg transition-colors">
+                          {/* <button className="flex items-center gap-1 px-2.5 py-1.5 text-xs text-gray-500 hover:text-[#137fec] hover:bg-[#137fec]/5 rounded-lg transition-colors">
                             <Heart className="w-3.5 h-3.5" />
                             <span className="hidden sm:block">Liste de souhaits</span>
-                          </button>
+                          </button> */}
                           <button
                             onClick={() => removeItem(item.id)}
                             className="flex items-center gap-1 px-2.5 py-1.5 text-xs text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
@@ -247,7 +256,7 @@ export default function CartPage() {
                 <div className="mt-4 pt-4 border-t border-gray-100">
                   <p className="text-xs text-gray-400 text-center mb-3">Paiement sécurisé</p>
                   <div className="flex items-center justify-center gap-2 flex-wrap">
-                    {["Visa", "Mastercard", "PayPal", "Apple Pay"].map((method) => (
+                    {["Card", "Orange Money", "Kulu", "MoMo"].map((method) => (
                       <span
                         key={method}
                         className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded font-medium"
@@ -269,14 +278,18 @@ export default function CartPage() {
         )}
 
         {/* Recommendations */}
-        <div className="mt-12">
-          <h2 className="text-2xl font-black text-[#101922] mb-6">Vous pourriez aussi aimer</h2>
-          <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {recommendations.map((product) => (
-              <ProductCard key={product.id} {...product} />
-            ))}
+        {recommended.length > 0 && (
+          <div className="mt-12">
+            <h2 className="text-2xl font-black text-[#101922] mb-6">
+              Vous pourriez aussi aimer
+            </h2>
+            <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {recommended.map((product) => (
+                <ProductCard key={product.id} {...product} />
+              ))}
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       <Footer />

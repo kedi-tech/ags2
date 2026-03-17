@@ -1,5 +1,9 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { getCategories } from "@/api/category";
+import { useCart } from "@/context/CartContext";
+import { useAuth } from "@/context/AuthContext";
+import { useWishlist } from "@/context/WishlistContext";
 import {
   Search,
   ShoppingCart,
@@ -15,15 +19,21 @@ import {
   Zap,
 } from "lucide-react";
 
-const categories = [
-  { name: "Électronique", slug: "electronique", hasMegaMenu: true },
-  { name: "Maison & Jardin", slug: "maison-jardin" },
-  { name: "Mode", slug: "mode" },
-  { name: "Jouets", slug: "jouets" },
-  { name: "Beauté", slug: "beaute" },
-  { name: "Sport", slug: "sport" },
-  { name: "Promotions", slug: "promotions", isPromo: true },
-];
+type HeaderSubCategory = {
+  id: string;
+  name: string;
+  slug: string;
+};
+
+type HeaderCategory = {
+  id?: number | string;
+  name: string;
+  slug: string;
+  isPromo?: boolean;
+  hasMegaMenu?: boolean;
+  allCategories?: boolean;
+  subCategories?: HeaderSubCategory[];
+};
 
 const megaMenuItems = [
   { icon: Laptop, name: "Ordinateurs", slug: "ordinateurs" },
@@ -34,9 +44,86 @@ const megaMenuItems = [
 
 export default function Header() {
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [megaMenuOpen, setMegaMenuOpen] = useState(false);
+  const [megaMenuOpen, setMegaMenuOpen] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [categories, setCategories] = useState<HeaderCategory[]>([]);
   const navigate = useNavigate();
+  const { items: cartItems } = useCart();
+  const { client, logout } = useAuth();
+  const { items: wishlistItems } = useWishlist();
+
+  const displayName =
+    (client &&
+      (client.name ||
+        client.fullName ||
+        client.full_name ||
+        client.username ||
+        client.email)) ||
+    "Mon compte";
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadCategories = async () => {
+      try {
+        const data = await getCategories();
+        if (!isMounted) return;
+
+        let mapped: HeaderCategory[] = (data || []).map((cat: any) => ({
+          id: cat.id,
+          name: cat.name ?? cat.label ?? "Catégorie",
+          slug: cat.slug ?? String(cat.id ?? "").toLowerCase(),
+          isPromo: cat.isPromo ?? cat.is_promo ?? false,
+          hasMegaMenu:
+            cat.hasMegaMenu ??
+            cat.has_mega_menu ??
+            (cat.slug === "electronique" || cat.name === "Électronique"),
+          subCategories: Array.isArray(cat.subCategories)
+            ? cat.subCategories.map((sub: any) => ({
+                id: String(sub.id),
+                name: sub.name ?? "Sous-catégorie",
+                slug: sub.slug ?? String(sub.id),
+              }))
+            : [],
+        }));
+
+        const hasPromotions = mapped.some(
+          (cat) =>
+            cat.slug === "promotions" ||
+            cat.name.toLowerCase() === "promotions"
+        );
+
+        // Ensure "All products" entry is present at the beginning
+        const allEntry: HeaderCategory = {
+          name: "Tous les produits",
+          slug: "all",
+        };
+
+        mapped = [allEntry, ...mapped];
+
+        if (!hasPromotions) {
+          mapped = [
+            ...mapped,
+            {
+              name: "Promotions",
+              slug: "promotions",
+              isPromo: true,
+            },
+          ];
+        }
+
+        setCategories(mapped);
+      } catch (error) {
+        console.error("Failed to load categories", error);
+      }
+    };
+
+    loadCategories();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -87,6 +174,11 @@ export default function Header() {
               title="Mes favoris"
             >
               <Heart className="w-5 h-5 text-gray-600 group-hover:text-[#137fec] transition-colors" />
+              {wishlistItems.length > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-pink-500 text-white text-[10px] rounded-full flex items-center justify-center font-bold leading-none">
+                  {wishlistItems.length}
+                </span>
+              )}
             </Link>
 
             <Link
@@ -96,19 +188,34 @@ export default function Header() {
             >
               <ShoppingCart className="w-5 h-5 text-gray-600 group-hover:text-[#137fec] transition-colors" />
               <span className="absolute -top-0.5 -right-0.5 w-5 h-5 bg-[#137fec] text-white text-xs rounded-full flex items-center justify-center font-bold leading-none">
-                3
+                {cartItems.reduce((sum, item) => sum + item.quantity, 0)}
               </span>
             </Link>
 
-            <Link
-              to="/compte"
-              className="hidden sm:flex items-center gap-2 px-3 py-2 rounded-xl hover:bg-[#f6f7f8] transition-colors ml-1"
-            >
-              <div className="w-8 h-8 bg-[#137fec]/10 rounded-full flex items-center justify-center">
-                <User className="w-4 h-4 text-[#137fec]" />
-              </div>
-              <span className="text-sm font-medium text-gray-700 hidden lg:block">Se connecter</span>
-            </Link>
+            {client ? (
+              <button
+                onClick={() => navigate("/compte")}
+                className="hidden sm:flex items-center gap-2 px-3 py-2 rounded-xl hover:bg-[#f6f7f8] transition-colors ml-1"
+                title="Mon compte"
+              >
+                <div className="w-8 h-8 bg-[#137fec]/10 rounded-full flex items-center justify-center">
+                  <User className="w-4 h-4 text-[#137fec]" />
+                </div>
+                <span className="text-sm font-medium text-gray-700 hidden lg:block">
+                  {displayName}
+                </span>
+              </button>
+            ) : (
+              <Link
+                to="/compte"
+                className="hidden sm:flex items-center gap-2 px-3 py-2 rounded-xl hover:bg-[#f6f7f8] transition-colors ml-1"
+              >
+                <div className="w-8 h-8 bg-[#137fec]/10 rounded-full flex items-center justify-center">
+                  <User className="w-4 h-4 text-[#137fec]" />
+                </div>
+                <span className="text-sm font-medium text-gray-700 hidden lg:block">Se connecter</span>
+              </Link>
+            )}
 
             {/* Mobile menu toggle */}
             <button
@@ -122,61 +229,76 @@ export default function Header() {
 
         {/* Category navigation - desktop */}
         <nav className="hidden lg:flex items-center gap-1 py-2 border-t border-gray-100">
-          {categories.map((cat) => (
-            <div
-              key={cat.slug}
-              className="relative"
-              onMouseEnter={() => cat.hasMegaMenu && setMegaMenuOpen(true)}
-              onMouseLeave={() => cat.hasMegaMenu && setMegaMenuOpen(false)}
-            >
-              <Link
-                to={`/categorie/${cat.slug}`}
-                className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
-                  cat.isPromo
-                    ? "text-orange-500 hover:bg-orange-50"
-                    : "text-gray-600 hover:text-[#137fec] hover:bg-[#137fec]/5"
-                }`}
-              >
-                {cat.name}
-                {cat.hasMegaMenu && <ChevronDown className="w-3.5 h-3.5 opacity-60" />}
-                {cat.isPromo && <Zap className="w-3 h-3 fill-current" />}
-              </Link>
+          {categories.map((cat) => {
+            const hasSubCategories =
+              Array.isArray(cat.subCategories) && cat.subCategories.length > 0;
 
-              {/* Mega Menu */}
-              {cat.hasMegaMenu && megaMenuOpen && (
-                <div className="absolute top-full left-0 mt-1 bg-white rounded-2xl shadow-2xl border border-gray-100 p-6 w-[480px] z-50">
-                  <div className="grid grid-cols-2 gap-3">
-                    {megaMenuItems.map((item) => (
+            // "Tous les produits" and "Promotions" stay as simple links
+            const isSimple =
+              cat.slug === "all" || cat.slug === "promotions" || !hasSubCategories;
+
+            if (isSimple) {
+              return (
+                <Link
+                  key={cat.slug}
+                  to={`/categorie/${cat.slug}`}
+                  className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                    cat.isPromo
+                      ? "text-orange-500 hover:bg-orange-50"
+                      : "text-gray-600 hover:text-[#137fec] hover:bg-[#137fec]/5"
+                  }`}
+                >
+                  {cat.name}
+                  {cat.isPromo && <Zap className="w-3 h-3 fill-current" />}
+                </Link>
+              );
+            }
+
+            return (
+              <div
+                key={cat.slug}
+                className="relative"
+                onMouseEnter={() => setMegaMenuOpen(cat.slug)}
+                onMouseLeave={() => setMegaMenuOpen((prev) => (prev === cat.slug ? null : prev))}
+              >
+                <button
+                  type="button"
+                  className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                    cat.isPromo
+                      ? "text-orange-500 hover:bg-orange-50"
+                      : "text-gray-600 hover:text-[#137fec] hover:bg-[#137fec]/5"
+                  }`}
+                >
+                  {cat.name}
+                  <ChevronDown className="w-3.5 h-3.5 opacity-60" />
+                </button>
+
+                {megaMenuOpen === cat.slug && (
+                  <div className="absolute top-full left-0 mt-1 bg-white rounded-2xl shadow-2xl border border-gray-100 py-3 w-56 z-50">
+                    <div className="px-3 pb-2 border-b border-gray-100">
                       <Link
-                        key={item.slug}
-                        to={`/categorie/${item.slug}`}
-                        className="flex items-center gap-3 p-3 rounded-xl hover:bg-[#137fec]/5 transition-colors group"
+                        to={`/categorie/${cat.slug}`}
+                        className="flex items-center justify-between text-xs font-semibold text-gray-700 px-2 py-1.5 rounded-lg hover:bg-[#137fec]/5 hover:text-[#137fec]"
                       >
-                        <div className="w-10 h-10 bg-[#137fec]/10 rounded-lg flex items-center justify-center group-hover:bg-[#137fec]/20 transition-colors">
-                          <item.icon className="w-5 h-5 text-[#137fec]" />
-                        </div>
-                        <span className="text-sm font-medium text-gray-700 group-hover:text-[#137fec] transition-colors">
-                          {item.name}
-                        </span>
+                        Voir tout {cat.name}
                       </Link>
-                    ))}
+                    </div>
+                    <div className="max-h-72 overflow-y-auto py-1">
+                      {cat.subCategories?.map((sub) => (
+                        <Link
+                          key={sub.id}
+                          to={`/categorie/${sub.slug}`}
+                          className="block px-4 py-1.5 text-sm text-gray-600 hover:bg-[#137fec]/5 hover:text-[#137fec] transition-colors"
+                        >
+                          {sub.name}
+                        </Link>
+                      ))}
+                    </div>
                   </div>
-                  {/* Featured card */}
-                  <div className="mt-4 bg-gradient-to-r from-[#137fec] to-[#0a5fb8] rounded-xl p-4 text-white">
-                    <div className="text-xs font-semibold uppercase tracking-wider opacity-80 mb-1">Nouvelle Arrivée</div>
-                    <div className="font-bold text-lg">MacBook Pro M3</div>
-                    <div className="text-sm opacity-80 mt-1">À partir de 19 990 000 GNF</div>
-                    <Link
-                      to="/categorie/ordinateurs"
-                      className="inline-block mt-3 text-xs font-semibold bg-white/20 hover:bg-white/30 px-3 py-1.5 rounded-lg transition-colors"
-                    >
-                      Découvrir →
-                    </Link>
-                  </div>
-                </div>
-              )}
-            </div>
-          ))}
+                )}
+              </div>
+            );
+          })}
         </nav>
       </div>
 

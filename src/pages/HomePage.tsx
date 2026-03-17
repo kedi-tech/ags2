@@ -1,8 +1,10 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
 import ProductCard from "@/components/shared/ProductCard";
+import { getCategories } from "@/api/category";
+import { getProducts } from "@/api/products";
 import {
   Monitor,
   Home as HomeIcon,
@@ -16,14 +18,23 @@ import {
   Heart,
 } from "lucide-react";
 
-const categories = [
-  { name: "Électronique", icon: Monitor, slug: "electronique", count: "2 450+", color: "bg-blue-50 text-blue-600" },
-  { name: "Maison & Jardin", icon: HomeIcon, slug: "maison-jardin", count: "1 820+", color: "bg-green-50 text-green-600" },
-  { name: "Mode", icon: Shirt, slug: "mode", count: "3 100+", color: "bg-pink-50 text-pink-600" },
-  { name: "Jouets", icon: Gamepad2, slug: "jouets", count: "890+", color: "bg-yellow-50 text-yellow-600" },
-  { name: "Beauté", icon: Sparkles, slug: "beaute", count: "1 200+", color: "bg-purple-50 text-purple-600" },
-  { name: "Sport", icon: Dumbbell, slug: "sport", count: "760+", color: "bg-orange-50 text-orange-600" },
-];
+type ApiCategory = {
+  id: number | string;
+  name: string;
+  slug?: string;
+  icon?: string;
+  products?: { id: number | string }[];
+  description?: string;
+};
+
+const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
+  devices: Monitor,
+  home: HomeIcon,
+  spa: Sparkles,
+  fashion: Shirt,
+  games: Gamepad2,
+  sport: Dumbbell,
+};
 
 const heroSlides = [
   {
@@ -49,63 +60,59 @@ const heroSlides = [
   },
 ];
 
-const newArrivals = [
-  {
-    id: 1,
-    name: "Studio Wireless Pro",
-    category: "Audio",
-    price: 279,
-    originalPrice: 349,
-    image: "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=400&q=80",
-    rating: 4.8,
-    reviews: 234,
-    badge: "Nouveau",
-  },
-  {
-    id: 2,
-    name: "Montre Classique",
-    category: "Wearables",
-    price: 185,
-    image: "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400&q=80",
-    rating: 4.6,
-    reviews: 189,
-    badge: "Nouveau",
-  },
-  {
-    id: 3,
-    name: "Runner Pro X2",
-    category: "Sport",
-    price: 120,
-    originalPrice: 150,
-    image: "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=400&q=80",
-    rating: 4.7,
-    reviews: 312,
-  },
-  {
-    id: 4,
-    name: "InstaSnap Retro Cam",
-    category: "Photo",
-    price: 89,
-    image: "https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?w=400&q=80",
-    rating: 4.4,
-    reviews: 97,
-    badge: "Tendance",
-  },
-  {
-    id: 5,
-    name: "Laptop UltraSlim 15",
-    category: "Électronique",
-    price: 999,
-    originalPrice: 1199,
-    image: "https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=400&q=80",
-    rating: 4.9,
-    reviews: 456,
-    badge: "Bestseller",
-  },
-];
-
 export default function HomePage() {
   const [currentSlide, setCurrentSlide] = useState(0);
+  const [categories, setCategories] = useState<ApiCategory[]>([]);
+  const [newArrivals, setNewArrivals] = useState<any[]>([]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadData = async () => {
+      try {
+        const [categoriesData, productsData] = await Promise.all([
+          getCategories(),
+          getProducts(),
+        ]);
+        if (!isMounted) return;
+
+        setCategories(categoriesData || []);
+
+        const sorted = (productsData || [])
+          .slice()
+          .sort(
+            (a: any, b: any) =>
+              new Date(b.createdAt).getTime() -
+              new Date(a.createdAt).getTime()
+          )
+          .slice(0, 5)
+          .map((p: any) => {
+            const firstImageUrl =
+              p.images && p.images.length > 0 ? p.images[0].url : undefined;
+            return {
+              id: p.id,
+              name: p.name,
+              category: p.category?.name ?? "Produits",
+              price: p.price ?? 0,
+              image:
+                firstImageUrl ||
+                p.imageUrl ||
+                "https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=400&q=80",
+            };
+          });
+
+        setNewArrivals(sorted);
+      } catch (error) {
+        console.error("Failed to load home data", error);
+      }
+    };
+
+    loadData();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const prevSlide = () => setCurrentSlide((s) => (s - 1 + heroSlides.length) % heroSlides.length);
   const nextSlide = () => setCurrentSlide((s) => (s + 1) % heroSlides.length);
@@ -229,21 +236,30 @@ export default function HomePage() {
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
-          {categories.map((cat) => (
-            <Link
-              key={cat.slug}
-              to={`/categorie/${cat.slug}`}
-              className="group bg-white rounded-2xl border border-gray-100 p-5 text-center hover:border-[#137fec]/30 hover:shadow-lg hover:-translate-y-1 transition-all duration-300"
-            >
-              <div className={`w-12 h-12 ${cat.color} rounded-xl flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform`}>
-                <cat.icon className="w-6 h-6" />
-              </div>
-              <h3 className="text-sm font-bold text-gray-800 group-hover:text-[#137fec] transition-colors">
-                {cat.name}
-              </h3>
-              <p className="text-xs text-gray-400 mt-1">{cat.count} articles</p>
-            </Link>
-          ))}
+          {categories.map((cat) => {
+            const Icon =
+              (cat.icon && iconMap[cat.icon]) ||
+              Monitor;
+            const slug = cat.slug ?? String(cat.id);
+            const count = cat.products?.length ?? 0;
+            return (
+              <Link
+                key={slug}
+                to={`/categorie/${slug}`}
+                className="group bg-white rounded-2xl border border-gray-100 p-5 text-center hover:border-[#137fec]/30 hover:shadow-lg hover:-translate-y-1 transition-all duration-300"
+              >
+                <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform">
+                  <Icon className="w-6 h-6" />
+                </div>
+                <h3 className="text-sm font-bold text-gray-800 group-hover:text-[#137fec] transition-colors">
+                  {cat.name}
+                </h3>
+                <p className="text-xs text-gray-400 mt-1">
+                  {count} produit{count > 1 ? "s" : ""}
+                </p>
+              </Link>
+            );
+          })}
         </div>
       </section>
 
