@@ -40,7 +40,7 @@ export default function OrderConfirmationPage() {
 
   const buyer = state.buyer || {};
   const buyerName: string =
-    buyer.name || client?.name || "Client AGS";
+    buyer.name || client?.name || "Client ASG";
   const buyerEmail: string =
     client?.email || buyer.email || "votre adresse email";
   const buyerPhone: string | undefined =
@@ -165,7 +165,7 @@ export default function OrderConfirmationPage() {
                     <UserPlus className="w-6 h-6 text-white" />
                   </div>
                   <div className="flex-1">
-                    <h3 className="font-black text-[#101922]">Créez votre compte AGS</h3>
+                    <h3 className="font-black text-[#101922]">Créez votre compte ASG</h3>
                     <p className="text-sm text-gray-500 mt-0.5">
                       Suivez vos commandes, gérez vos retours et accédez à des offres exclusives.
                     </p>

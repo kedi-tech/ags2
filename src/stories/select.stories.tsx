@@ -13,7 +13,7 @@ import {
 const meta = {
   title: "ui/Select",
   component: Select,
-  tags: ["autodocs"],
+  tASG: ["autodocs"],
   argTypes: {},
 };
 export default meta;

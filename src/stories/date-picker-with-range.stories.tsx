@@ -4,7 +4,7 @@ import DatePickerWithRange from "../components/ui/date-picker-with-range";
 const meta = {
   title: "ui/DatePickerWithRange",
   component: DatePickerWithRange,
-  tags: ["autodocs"],
+  tASG: ["autodocs"],
   argTypes: {},
 };
 export default meta;

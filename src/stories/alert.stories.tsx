@@ -7,7 +7,7 @@ import { Alert, AlertDescription, AlertTitle } from "../components/ui/alert";
 const meta = {
   title: "ui/Alert",
   component: Alert,
-  tags: ["autodocs"],
+  tASG: ["autodocs"],
   argTypes: {},
 };
 export default meta;

@@ -4,7 +4,7 @@ import { Label } from "../components/ui/label";
 const meta = {
   title: "ui/Label",
   component: Label,
-  tags: ["autodocs"],
+  tASG: ["autodocs"],
   argTypes: {},
 };
 export default meta;

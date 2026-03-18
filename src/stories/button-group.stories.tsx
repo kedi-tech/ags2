@@ -11,7 +11,7 @@ import {
 const meta = {
   title: "ui/ButtonGroup",
   component: ButtonGroup,
-  tags: ["autodocs"],
+  tASG: ["autodocs"],
   argTypes: {},
 };
 export default meta;

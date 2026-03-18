@@ -1,109 +1,124 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
 import { Search, ArrowRight, ChevronRight } from "lucide-react";
+import { getCategories } from "@/api/category";
 
-const categorySections = [
-  {
-    letter: "É",
-    name: "Électronique",
-    slug: "electronique",
-    subcategories: [
-      { name: "Ordinateurs", slug: "ordinateurs", count: 234 },
-      { name: "Maison Connectée", slug: "maison-connectee", count: 89 },
-      { name: "Audio & Vidéo", slug: "audio", count: 156 },
-      { name: "Appareils Photo", slug: "appareils-photo", count: 67 },
-    ],
-  },
-  {
-    letter: "M",
-    name: "Maison & Jardin",
-    slug: "maison-jardin",
-    subcategories: [
-      { name: "Cuisine", slug: "cuisine", count: 189 },
-      { name: "Mobilier", slug: "mobilier", count: 234 },
-      { name: "Décoration", slug: "decoration", count: 312 },
-      { name: "Jardin", slug: "jardin", count: 98 },
-    ],
-  },
-  {
-    letter: "M",
-    name: "Mode",
-    slug: "mode",
-    subcategories: [
-      { name: "Femme", slug: "femme", count: 567 },
-      { name: "Homme", slug: "homme", count: 489 },
-      { name: "Enfants", slug: "enfants", count: 234 },
-      { name: "Bagages", slug: "bagages", count: 78 },
-    ],
-  },
-  {
-    letter: "J",
-    name: "Jouets & Enfants",
-    slug: "jouets",
-    subcategories: [
-      { name: "Jeux de société", slug: "jeux-societe", count: 145 },
-      { name: "Jeux éducatifs", slug: "jeux-educatifs", count: 89 },
-      { name: "Figurines", slug: "figurines", count: 67 },
-      { name: "Jeux vidéo", slug: "jeux-video", count: 234 },
-    ],
-  },
-  {
-    letter: "B",
-    name: "Beauté & Santé",
-    slug: "beaute",
-    subcategories: [
-      { name: "Soins visage", slug: "soins-visage", count: 178 },
-      { name: "Maquillage", slug: "maquillage", count: 289 },
-      { name: "Parfums", slug: "parfums", count: 156 },
-      { name: "Bien-être", slug: "bien-etre", count: 98 },
-    ],
-  },
-  {
-    letter: "S",
-    name: "Sport & Loisirs",
-    slug: "sport",
-    subcategories: [
-      { name: "Fitness", slug: "fitness", count: 234 },
-      { name: "Randonnée", slug: "randonnee", count: 89 },
-      { name: "Natation", slug: "natation", count: 67 },
-      { name: "Vélo", slug: "velo", count: 145 },
-    ],
-  },
-];
+type ApiSubCategory = {
+  id: string | number;
+  name: string;
+  slug?: string;
+  products?: { id: string | number }[];
+};
 
-const popularCollections = [
-  {
-    name: "Chaussures Sport",
-    slug: "sport",
-    image: "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=400&q=80",
-    count: "280+",
-  },
-  {
-    name: "Vie Minimaliste",
-    slug: "maison-jardin",
-    image: "https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=400&q=80",
-    count: "145+",
-  },
-  {
-    name: "Montres de Luxe",
-    slug: "electronique",
-    image: "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400&q=80",
-    count: "89+",
-  },
-  {
-    name: "Cuisine Moderne",
-    slug: "maison-jardin",
-    image: "https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400&q=80",
-    count: "200+",
-  },
-];
+type ApiCategory = {
+  id: string | number;
+  name: string;
+  slug?: string;
+  products?: { id: string | number; images?: { url?: string }[]; imageUrl?: string }[];
+  subCategories?: ApiSubCategory[];
+};
 
-const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ#".split("");
+const DEFAULT_COLLECTION_IMAGE =
+  "https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=800&q=80";
+
+const getSectionLetter = (name: string) => {
+  const first = (name || "").trim().charAt(0);
+  if (!first) return "#";
+  const normalized = first.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  const upper = normalized.toUpperCase();
+  return /[A-Z]/.test(upper) ? upper : "#";
+};
 
 export default function AllCategoriesPage() {
   const [searchQuery, setSearchQuery] = useState("");
+  const [categories, setCategories] = useState<ApiCategory[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let isMounted = true;
+    const load = async () => {
+      setLoading(true);
+      try {
+        const data = await getCategories();
+        if (!isMounted) return;
+        setCategories(Array.isArray(data) ? (data as ApiCategory[]) : []);
+      } catch (error) {
+        console.error("Failed to load categories", error);
+        if (!isMounted) return;
+        setCategories([]);
+      } finally {
+        if (isMounted) setLoading(false);
+      }
+    };
+    load();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const filteredCategories = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return categories;
+    return categories.filter((cat) => {
+      const inCat = String(cat.name || "").toLowerCase().includes(q);
+      const inSubs = (cat.subCategories || []).some((s) =>
+        String(s.name || "").toLowerCase().includes(q)
+      );
+      return inCat || inSubs;
+    });
+  }, [categories, searchQuery]);
+
+  const categorySections = useMemo(() => {
+    const mapped = filteredCategories
+      .map((cat) => {
+        const slug = cat.slug ?? String(cat.id);
+        const letter = getSectionLetter(cat.name);
+        const subcategories = (cat.subCategories || []).map((sub) => ({
+          name: sub.name,
+          slug: sub.slug ?? String(sub.id),
+          count: Array.isArray(sub.products) ? sub.products.length : 0,
+        }));
+
+        return {
+          letter,
+          name: cat.name,
+          slug,
+          subcategories,
+          totalCount: Array.isArray(cat.products) ? cat.products.length : 0,
+          heroImage:
+            cat.products && cat.products.length > 0
+              ? cat.products[0]?.images?.[0]?.url ||
+                (cat.products[0] as any)?.imageUrl ||
+                DEFAULT_COLLECTION_IMAGE
+              : DEFAULT_COLLECTION_IMAGE,
+        };
+      })
+      .sort((a, b) => a.name.localeCompare(b.name, "fr"));
+
+    return mapped;
+  }, [filteredCategories]);
+
+  const alphabet = useMemo(() => {
+    const letters = new Set(categorySections.map((s) => s.letter));
+    const base = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("").filter((l) => letters.has(l));
+    if (letters.has("#")) base.push("#");
+    return base.length > 0 ? base : "ABCDEFGHIJKLMNOPQRSTUVWXYZ#".split("");
+  }, [categorySections]);
+
+  const popularCollections = useMemo(() => {
+    return categorySections
+      .slice()
+      .sort((a, b) => (b.totalCount || 0) - (a.totalCount || 0))
+      .slice(0, 4)
+      .map((c) => ({
+        name: c.name,
+        slug: c.slug,
+        image: c.heroImage,
+        count: c.totalCount,
+      }));
+  }, [categorySections]);
 
   return (
     <div className="min-h-screen bg-[#f6f7f8]">
@@ -149,13 +164,20 @@ export default function AllCategoriesPage() {
 
         {/* Category sections */}
         <div className="space-y-10">
-          {categorySections
-            .filter((section) =>
-              !searchQuery ||
-              section.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-              section.subcategories.some((s) => s.name.toLowerCase().includes(searchQuery.toLowerCase()))
-            )
-            .map((section) => (
+          {loading && (
+            <div className="bg-white rounded-2xl border border-gray-100 p-6 text-sm text-gray-600">
+              Chargement des catégories...
+            </div>
+          )}
+
+          {!loading && categorySections.length === 0 && (
+            <div className="bg-white rounded-2xl border border-gray-100 p-6 text-sm text-gray-600">
+              Aucune catégorie trouvée.
+            </div>
+          )}
+
+          {!loading &&
+            categorySections.map((section) => (
               <div key={section.slug} id={`letter-${section.letter}`}>
                 <div className="flex items-center justify-between mb-5">
                   <div className="flex items-center gap-3">
@@ -172,23 +194,31 @@ export default function AllCategoriesPage() {
                   </Link>
                 </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                  {section.subcategories.map((sub) => (
-                    <Link
-                      key={sub.slug}
-                      to={`/categorie/${sub.slug}`}
-                      className="bg-white rounded-2xl border border-gray-100 p-4 hover:border-[#137fec]/30 hover:shadow-md transition-all group"
-                    >
-                      <div className="flex items-center justify-between mb-1">
-                        <p className="text-sm font-bold text-gray-800 group-hover:text-[#137fec] transition-colors">
-                          {sub.name}
+                {section.subcategories.length === 0 ? (
+                  <div className="bg-white rounded-2xl border border-gray-100 p-4 text-sm text-gray-600">
+                    Aucune sous-catégorie disponible pour le moment.
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    {section.subcategories.map((sub) => (
+                      <Link
+                        key={sub.slug}
+                        to={`/categorie/${sub.slug}`}
+                        className="bg-white rounded-2xl border border-gray-100 p-4 hover:border-[#137fec]/30 hover:shadow-md transition-all group"
+                      >
+                        <div className="flex items-center justify-between mb-1">
+                          <p className="text-sm font-bold text-gray-800 group-hover:text-[#137fec] transition-colors">
+                            {sub.name}
+                          </p>
+                          <ArrowRight className="w-3.5 h-3.5 text-gray-300 group-hover:text-[#137fec] transition-colors" />
+                        </div>
+                        <p className="text-xs text-gray-400">
+                          {sub.count} article{sub.count > 1 ? "s" : ""}
                         </p>
-                        <ArrowRight className="w-3.5 h-3.5 text-gray-300 group-hover:text-[#137fec] transition-colors" />
-                      </div>
-                      <p className="text-xs text-gray-400">{sub.count} articles</p>
-                    </Link>
-                  ))}
-                </div>
+                      </Link>
+                    ))}
+                  </div>
+                )}
               </div>
             ))}
         </div>
@@ -212,7 +242,9 @@ export default function AllCategoriesPage() {
                 <div className="absolute inset-0 bg-gradient-to-t from-[#101922]/70 to-transparent" />
                 <div className="absolute bottom-0 left-0 right-0 p-4">
                   <h3 className="text-white font-black text-sm">{collection.name}</h3>
-                  <p className="text-white/70 text-xs">{collection.count} produits</p>
+                  <p className="text-white/70 text-xs">
+                    {collection.count} produit{collection.count > 1 ? "s" : ""}
+                  </p>
                 </div>
               </Link>
             ))}

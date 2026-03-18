@@ -6,7 +6,7 @@ import { Kbd, KbdGroup } from "../components/ui/kbd";
 const meta = {
   title: "ui/Kbd",
   component: Kbd,
-  tags: ["autodocs"],
+  tASG: ["autodocs"],
   argTypes: {},
 };
 export default meta;

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
@@ -29,17 +29,17 @@ const sidebarLinks = [
   { icon: Package, label: "Historique commandes", id: "orders" },
   { icon: Heart, label: "Liste de souhaits", id: "wishlist", href: "/souhaits" },
   { icon: MapPin, label: "Adresses", id: "addresses" },
-  { icon: CreditCard, label: "Méthodes de paiement", id: "payment" },
+  
   { icon: Settings, label: "Paramètres", id: "settings" },
 ];
 
-const orders = [
-  { id: "#ORD-88294710", date: "15 Jan 2024", total: "897 600 GNF", status: "Livré", statusType: "delivered" },
-  { id: "#ORD-77183621", date: "02 Dec 2023", total: "245 000 GNF", status: "En traitement", statusType: "processing" },
-  { id: "#ORD-66072512", date: "18 Nov 2023", total: "1 299 000 GNF", status: "Livré", statusType: "delivered" },
-  { id: "#ORD-55961403", date: "01 Oct 2023", total: "89 000 GNF", status: "Annulé", statusType: "cancelled" },
-  { id: "#ORD-44850394", date: "15 Sep 2023", total: "349 000 GNF", status: "Livré", statusType: "delivered" },
-];
+// const orders = [
+//   { id: "#ORD-88294710", date: "15 Jan 2024", total: "897 600 GNF", status: "Livré", statusType: "delivered" },
+//   { id: "#ORD-77183621", date: "02 Dec 2023", total: "245 000 GNF", status: "En traitement", statusType: "processing" },
+//   { id: "#ORD-66072512", date: "18 Nov 2023", total: "1 299 000 GNF", status: "Livré", statusType: "delivered" },
+//   { id: "#ORD-55961403", date: "01 Oct 2023", total: "89 000 GNF", status: "Annulé", statusType: "cancelled" },
+//   { id: "#ORD-44850394", date: "15 Sep 2023", total: "349 000 GNF", status: "Livré", statusType: "delivered" },
+// ];
 
 const statusConfig: Record<string, { color: string; icon: any }> = {
   delivered: { color: "text-green-700 bg-green-100", icon: CheckCircle },
@@ -135,6 +135,7 @@ function AddressSection({ client, token, updateClient }: AddressSectionProps) {
 export default function AccountPage() {
   const [activeSection, setActiveSection] = useState("overview");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const ordersSectionRef = useRef<HTMLDivElement | null>(null);
   const [authTab, setAuthTab] = useState<"login" | "register">("login");
   const [authForm, setAuthForm] = useState({
     name: "",
@@ -145,7 +146,8 @@ export default function AccountPage() {
   });
   const [authError, setAuthError] = useState<string | null>(null);
   const [authLoading, setAuthLoading] = useState(false);
-  const { client, token, loginWithToken, logout, updateClient } = useAuth();
+  const { client, token, loginWithToken, logout, updateClient, refreshClient } =
+    useAuth();
   const navigate = useNavigate();
   const [recommended, setRecommended] = useState<any[]>([]);
   const [recommendedLoading, setRecommendedLoading] = useState(false);
@@ -165,6 +167,14 @@ export default function AccountPage() {
     .join("")
     .slice(0, 2)
     .toUpperCase();
+
+  const goToOrders = () => {
+    setActiveSection("orders");
+    setMobileMenuOpen(false);
+    window.requestAnimationFrame(() => {
+      ordersSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  };
 
   const handleAuthSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -267,6 +277,40 @@ export default function AccountPage() {
     };
   }, []);
 
+  // Keep orders/client info fresh while user is on account page
+  useEffect(() => {
+    if (!token) return;
+
+    let cancelled = false;
+
+    const tick = async () => {
+      try {
+        await refreshClient();
+      } catch {
+        // ignore
+      }
+    };
+
+    // Fetch immediately on entering the page
+    tick();
+
+    // Poll every 10 seconds
+    const interval = window.setInterval(() => {
+      if (cancelled) return;
+      tick();
+    }, 10000);
+
+    // Refresh when user refocuses the tab
+    const onFocus = () => tick();
+    window.addEventListener("focus", onFocus);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+      window.removeEventListener("focus", onFocus);
+    };
+  }, [token, refreshClient]);
+
   return (
     <div className="min-h-screen bg-[#f6f7f8]">
       <Header />
@@ -367,8 +411,55 @@ export default function AccountPage() {
 
         {client && (
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-            {/* Sidebar */}
-            <div className="lg:col-span-1">
+            {/* Mobile header (profile + quick nav) */}
+            <div className="lg:hidden space-y-3">
+              <div className="bg-white rounded-2xl border border-gray-100 p-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 bg-[#137fec]/10 rounded-full flex items-center justify-center text-[#137fec] text-lg font-black">
+                    {initials}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-black text-gray-900 truncate">
+                      {displayName}
+                    </p>
+                    <p className="text-xs text-gray-500 truncate">
+                      {client.email || "—"}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      logout();
+                      navigate("/");
+                    }}
+                    className="text-xs font-semibold text-red-500 border border-red-200 px-3 py-2 rounded-xl hover:bg-red-50 transition-colors"
+                  >
+                    Déconnexion
+                  </button>
+                </div>
+              </div>
+
+              <div className="bg-white rounded-2xl border border-gray-100 p-2 overflow-x-auto">
+                <div className="flex gap-2 min-w-max">
+                  {sidebarLinks.map((link) => (
+                    <button
+                      key={link.id}
+                      onClick={() => setActiveSection(link.id)}
+                      className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold transition-all whitespace-nowrap ${
+                        activeSection === link.id
+                          ? "bg-[#137fec] text-white"
+                          : "text-gray-600 hover:bg-gray-50"
+                      }`}
+                    >
+                      <link.icon className="w-4 h-4" />
+                      {link.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Sidebar (desktop) */}
+            <div className="hidden lg:block lg:col-span-1">
               <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
                 {/* Profile */}
                 <div className="bg-gradient-to-r from-[#137fec] to-[#0a5fb8] p-6 text-white">
@@ -380,7 +471,7 @@ export default function AccountPage() {
                     {client.email || "—"}
                   </p>
                   <span className="inline-block mt-2 text-xs font-bold bg-amber-400 text-amber-900 px-2.5 py-1 rounded-full">
-                    ⭐ Client AGS
+                    ⭐ Client ASG
                   </span>
                 </div>
 
@@ -437,10 +528,10 @@ export default function AccountPage() {
                       Bonjour, {displayName} 👋
                     </h2>
                     <p className="text-gray-500 text-sm">
-                      Voici un aperçu de votre compte AGS.
+                      Voici un aperçu de votre compte ASG.
                     </p>
 
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-5">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 mt-5">
                       <div className="bg-[#f6f7f8] rounded-xl p-4">
                         <p className="text-xs font-semibold text-gray-500 mb-1">
                           Email
@@ -457,7 +548,7 @@ export default function AccountPage() {
                           {(client as any).phone || "—"}
                         </p>
                       </div>
-                      <div className="bg-[#f6f7f8] rounded-xl p-4">
+                      <div className="bg-[#f6f7f8] rounded-xl p-4 sm:col-span-2 lg:col-span-1">
                         <p className="text-xs font-semibold text-gray-500 mb-1">
                           Adresse
                         </p>
@@ -467,7 +558,7 @@ export default function AccountPage() {
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-3 gap-4 mt-5">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4 mt-5">
                       <div className="bg-[#f6f7f8] rounded-xl p-4 text-center">
                         <div className="w-10 h-10 text-[#137fec] bg-[#137fec]/10 rounded-xl flex items-center justify-center mx-auto mb-2">
                           <Package className="w-5 h-5" />
@@ -486,7 +577,7 @@ export default function AccountPage() {
                         </p>
                         <p className="text-xs text-gray-500">Souhaits</p>
                       </div>
-                      <div className="bg-[#f6f7f8] rounded-xl p-4 text-center">
+                      <div className="bg-[#f6f7f8] rounded-xl p-4 text-center col-span-2 sm:col-span-1">
                         <div className="w-10 h-10 text-amber-500 bg-amber-50 rounded-xl flex items-center justify-center mx-auto mb-2">
                           <Star className="w-5 h-5" />
                         </div>
@@ -505,13 +596,14 @@ export default function AccountPage() {
                         Commande récente
                       </h2>
                       {ordersCount > 0 && (
-                        <Link
-                          to="#"
+                        <button
+                          type="button"
+                          onClick={goToOrders}
                           className="text-xs font-semibold text-[#137fec] hover:underline flex items-center gap-1"
                         >
                           Voir tout l'historique
                           <ChevronRight className="w-3.5 h-3.5" />
-                        </Link>
+                        </button>
                       )}
                     </div>
 
@@ -541,12 +633,12 @@ export default function AccountPage() {
                               />
                             ) : (
                               <div className="w-14 h-14 rounded-xl bg-gray-200 flex items-center justify-center text-xs text-gray-500">
-                                AGS
+                                ASG
                               </div>
                             )}
                             <div className="flex-1">
                               <p className="text-sm font-bold text-gray-800 line-clamp-2">
-                                {firstItem?.name || "Commande AGS"}
+                                {firstItem?.name || "Commande ASG"}
                               </p>
                               <p className="text-xs text-gray-400">
                                 #{lastOrder.id ?? lastOrder.code ?? "—"}
@@ -571,7 +663,10 @@ export default function AccountPage() {
 
               {/* Orders section (dynamic from client.orders) */}
               {(activeSection === "overview" || activeSection === "orders") && (
-                <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+                <div
+                  ref={ordersSectionRef}
+                  className="bg-white rounded-2xl border border-gray-100 overflow-hidden scroll-mt-24"
+                >
                   <div className="p-6 pb-0">
                     <h2 className="text-lg font-black text-[#101922]">
                       Historique des commandes
@@ -592,7 +687,7 @@ export default function AccountPage() {
                         <table className="w-full">
                           <thead>
                             <tr className="border-b border-gray-100">
-                              {["ID commande", "Date", "Total", "Statut"].map(
+                              {["ID commande", "Date", "Statut", "Total"].map(
                                 (col) => (
                                   <th
                                     key={col}
@@ -635,17 +730,15 @@ export default function AccountPage() {
                                       ? new Date(createdAt).toLocaleString()
                                       : "—"}
                                   </td>
-                                  <td className="px-6 py-4 text-sm font-bold text-gray-800">
-                                    {typeof total === "number"
-                                      ? `${total.toLocaleString(
-                                          "fr-FR"
-                                        )} GNF`
-                                      : "—"}
-                                  </td>
                                   <td className="px-6 py-4">
                                     <span className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full text-blue-700 bg-blue-100">
                                       {status}
                                     </span>
+                                  </td>
+                                  <td className="px-6 py-4 text-sm font-bold text-gray-800">
+                                    {typeof total === "number"
+                                      ? `${total.toLocaleString("fr-FR")} GNF`
+                                      : "—"}
                                   </td>
                                 </tr>
                               );

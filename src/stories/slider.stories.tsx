@@ -4,7 +4,7 @@ import { Slider } from "../components/ui/slider";
 const meta = {
   title: "ui/Slider",
   component: Slider,
-  tags: ["autodocs"],
+  tASG: ["autodocs"],
   argTypes: {},
 };
 export default meta;

@@ -6,7 +6,7 @@ import { Label } from "../components/ui/label";
 const meta = {
   title: "ui/Input",
   component: Input,
-  tags: ["autodocs"],
+  tASG: ["autodocs"],
   argTypes: {},
 };
 export default meta;

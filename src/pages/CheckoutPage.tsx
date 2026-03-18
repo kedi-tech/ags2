@@ -4,6 +4,7 @@ import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
 import { loginClient, registerClient } from "@/api/clients";
 import { createOrder } from "@/api/orders";
+import { generatePaymentLink } from "@/api/payments";
 import { useCart } from "@/context/CartContext";
 import { useAuth } from "@/context/AuthContext";
 import {
@@ -44,6 +45,7 @@ export default function CheckoutPage() {
     cvv: "",
   });
   const [finalizing, setFinalizing] = useState(false);
+  const [waitingPayment, setWaitingPayment] = useState(false);
 
   const subtotal = cartItems.reduce(
     (sum, item) => sum + item.price * item.quantity,
@@ -51,18 +53,18 @@ export default function CheckoutPage() {
   );
   const shipping = selectedShipping === "express" ? 15000 : 0;
   const discount = promoApplied ? subtotal * 0.1 : 0;
-  const tax = Math.round((subtotal - discount) * 0.2 * 100) / 100;
+  const tax = Math.round((subtotal - discount) * 0.18 * 100) / 100;
   const total = subtotal + shipping - discount + tax;
 
   const handleApplyPromo = () => {
-    if (promoCode.toUpperCase() === "AGS10") {
+    if (promoCode.toUpperCase() === "ASG10") {
       setPromoApplied(true);
     }
   };
 
   const handleFinalizeOrder = async () => {
     try {
-      if (finalizing) return;
+      if (finalizing || waitingPayment) return;
       setFinalizing(true);
 
       if (cartItems.length === 0) {
@@ -111,41 +113,55 @@ export default function CheckoutPage() {
         address: client.address,
       });
 
-      const orderNumber =
-        orderResponse?.code ||
-        orderResponse?.id ||
-        `ORD-${Math.floor(10000000 + Math.random() * 90000000)}`;
+      const orderId = orderResponse?.id || orderResponse?.code;
+      if (!orderId) {
+        throw new Error("Impossible de récupérer l'identifiant de la commande.");
+      }
 
-      const orderSummary = {
-        orderNumber,
-        items: cartItems.map((item) => ({
-          id: item.id,
-          name: item.name,
-          image: item.image,
-          quantity: item.quantity,
-          price: item.price,
-        })),
-        totals: {
-          subtotal,
-          discount,
-          shipping,
-          tax,
-          total,
-        },
-        buyer: {
-          name: client.name,
-          email: client.email,
-          phone: client.phone,
-          address: client.address,
-          city: "",
-          state: "",
-          postalCode: "",
-        },
-        paymentMethod,
-      };
+      if (paymentMethod === "cash") {
+        // Flux "cash" : on reste comme avant, on va directement à la page de confirmation
+        const orderNumber =
+          orderResponse?.code ||
+          orderResponse?.id ||
+          `ORD-${Math.floor(10000000 + Math.random() * 90000000)}`;
 
-      clearCart();
-      navigate("/confirmation", { state: orderSummary });
+        const orderSummary = {
+          orderNumber,
+          items: cartItems.map((item) => ({
+            id: item.id,
+            name: item.name,
+            image: item.image,
+            quantity: item.quantity,
+            price: item.price,
+          })),
+          totals: {
+            subtotal,
+            discount,
+            shipping,
+            tax,
+            total,
+          },
+          buyer: {
+            name: client.name,
+            email: client.email,
+            phone: client.phone,
+            address: client.address,
+            city: "",
+            state: "",
+            postalCode: "",
+          },
+          paymentMethod,
+        };
+
+        clearCart();
+        navigate("/confirmation", { state: orderSummary });
+        return;
+      }
+
+      // Méthodes autres que cash : génération du lien de paiement
+      const paymentUrl = await generatePaymentLink(token, orderId);
+      window.open(paymentUrl as string, "_blank", "noopener,noreferrer");
+      setWaitingPayment(true);
     } catch (error) {
       console.error("Checkout error", error);
       alert("Une erreur est survenue lors de la validation de votre commande.");
@@ -239,7 +255,7 @@ export default function CheckoutPage() {
               ) : (
                 <div className="space-y-3 text-sm text-gray-700">
                   <p className="text-gray-600">
-                    Pour continuer la livraison et le paiement, vous devez être connecté à votre compte AGS.
+                    Pour continuer la livraison et le paiement, vous devez être connecté à votre compte ASG.
                   </p>
                   <button
                     onClick={() => navigate("/compte")}
@@ -420,7 +436,7 @@ export default function CheckoutPage() {
                       type="text"
                       value={promoCode}
                       onChange={(e) => setPromoCode(e.target.value)}
-                      placeholder="Code promo (AGS10)"
+                      placeholder="Code promo (ASG10)"
                       className="w-full pl-8 pr-3 py-2 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#137fec]/30 focus:border-[#137fec]"
                     />
                   </div>
@@ -434,7 +450,7 @@ export default function CheckoutPage() {
                 {promoApplied && (
                   <p className="text-xs text-green-600 font-semibold mt-1.5 flex items-center gap-1">
                     <CheckCircle className="w-3.5 h-3.5" />
-                    Code AGS10 appliqué — 10% de remise
+                    Code ASG10 appliqué — 10% de remise
                   </p>
                 )}
               </div>
@@ -462,7 +478,7 @@ export default function CheckoutPage() {
                   </span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-gray-500">TVA (20%)</span>
+                  <span className="text-gray-500">TVA (18%)</span>
                   <span className="font-semibold">
                     {tax.toFixed(2)} GNF
                   </span>
@@ -477,14 +493,18 @@ export default function CheckoutPage() {
 
               <button
                 onClick={handleFinalizeOrder}
-                disabled={finalizing}
+                disabled={finalizing || waitingPayment}
                 className="mt-5 w-full bg-[#137fec] hover:bg-[#0a6fd4] disabled:bg-[#9fc9f5] disabled:cursor-not-allowed text-white font-bold py-3.5 rounded-xl transition-all hover:shadow-lg hover:shadow-[#137fec]/30 flex items-center justify-center gap-2"
               >
                 {finalizing && (
                   <span className="w-4 h-4 border-2 border-white/60 border-t-transparent rounded-full animate-spin" />
                 )}
                 <Lock className="w-4 h-4" />
-                {finalizing ? "Validation en cours..." : "Finaliser la commande"}
+                {waitingPayment
+                  ? "En attente du paiement..."
+                  : finalizing
+                  ? "Validation en cours..."
+                  : "Finaliser la commande"}
               </button>
 
               {/* Trust */}

@@ -13,7 +13,7 @@ import { ToggleGroup, ToggleGroupItem } from "../components/ui/toggle-group";
 const meta = {
   title: "ui/ToggleGroup",
   component: ToggleGroup,
-  tags: ["autodocs"],
+  tASG: ["autodocs"],
   argTypes: {},
 };
 export default meta;

@@ -7,10 +7,14 @@ import ProductCard from "@/components/shared/ProductCard";
 import { getCategories } from "@/api/category";
 import { getProducts } from "@/api/products";
 import { getSubCategories } from "@/api/subCategories";
+import { useCart } from "@/context/CartContext";
+import { useWishlist } from "@/context/WishlistContext";
 import {
   SlidersHorizontal,
   Grid3X3,
   List,
+  Heart,
+  ShoppingCart,
   ChevronDown,
   Star,
   X,
@@ -18,12 +22,124 @@ import {
   ChevronRight,
 } from "lucide-react";
 
+function ProductListRow({ product }: { product: any }) {
+  const { addItem } = useCart();
+  const { items: wishlistItems, toggleItem } = useWishlist();
+
+  const wishlisted = wishlistItems.some((w) => String(w.id) === String(product.id));
+
+  return (
+    <Link
+      to={`/produit/${product.id}`}
+      className="group block bg-white rounded-2xl border border-gray-100 hover:shadow-lg transition-all"
+    >
+      <div className="p-3 sm:p-4 flex gap-3 sm:gap-4">
+        <div className="relative w-24 h-24 sm:w-28 sm:h-28 flex-shrink-0 rounded-xl overflow-hidden bg-[#f6f7f8]">
+          <img
+            src={product.image}
+            alt={product.name}
+            className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform"
+          />
+          <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              toggleItem({
+                id: product.id,
+                name: product.name,
+                price: product.price,
+                image: product.image,
+              });
+            }}
+            className="absolute top-2 right-2 w-9 h-9 bg-white rounded-full shadow-md flex items-center justify-center active:scale-[0.98]"
+            aria-label="Ajouter aux favoris"
+          >
+            <Heart
+              className={`w-4 h-4 ${
+                wishlisted ? "fill-red-500 text-red-500" : "text-gray-400"
+              }`}
+            />
+          </button>
+        </div>
+
+        <div className="min-w-0 flex-1 flex flex-col">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              {product.category && (
+                <p className="text-[11px] sm:text-xs text-[#137fec] font-semibold uppercase tracking-wide">
+                  {product.category}
+                </p>
+              )}
+              <h3 className="mt-0.5 text-sm sm:text-base font-bold text-gray-900 line-clamp-2">
+                {product.name}
+              </h3>
+              {(product.subCategory || product.brand) && (
+                <p className="mt-1 text-xs text-gray-500 line-clamp-1">
+                  {[product.subCategory, product.brand].filter(Boolean).join(" • ")}
+                </p>
+              )}
+            </div>
+
+            <div className="text-right flex-shrink-0">
+              <p className="text-sm sm:text-base font-black text-gray-900">
+                {Number(product.price || 0).toLocaleString("fr-FR")} GNF
+              </p>
+              {typeof product.originalPrice === "number" && product.originalPrice > product.price && (
+                <p className="text-xs text-gray-400 line-through">
+                  {Number(product.originalPrice).toLocaleString("fr-FR")} GNF
+                </p>
+              )}
+            </div>
+          </div>
+
+          <div className="mt-auto pt-3 flex items-center justify-between gap-3">
+            <div className="text-xs text-gray-500">
+              {typeof product.rating === "number" && (
+                <span className="inline-flex items-center gap-1">
+                  <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
+                  <span className="font-semibold text-gray-700">
+                    {product.rating.toFixed(1)}
+                  </span>
+                  {typeof product.reviews === "number" && product.reviews > 0 && (
+                    <span>({product.reviews})</span>
+                  )}
+                </span>
+              )}
+            </div>
+
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                addItem({
+                  id: product.id,
+                  name: product.name,
+                  price: product.price,
+                  image: product.image,
+                });
+              }}
+              className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-[#137fec] hover:bg-[#0a6fd4] text-white text-xs font-semibold transition-colors active:scale-[0.99]"
+            >
+              <ShoppingCart className="w-3.5 h-3.5" />
+              Ajouter
+            </button>
+          </div>
+        </div>
+      </div>
+    </Link>
+  );
+}
+
 export default function CategoryPage() {
   const { slug = "electronique" } = useParams();
   const [categoryName, setCategoryName] = useState("Catégorie");
   const [products, setProducts] = useState<any[]>([]);
   const [maxPrice, setMaxPrice] = useState(0);
-  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+  const [viewMode, setViewMode] = useState<"grid" | "list">(() => {
+    if (typeof window === "undefined") return "grid";
+    // Tailwind `sm` starts at 640px; below that we default to list view
+    return window.matchMedia("(max-width: 639px)").matches ? "list" : "grid";
+  });
   const [sortBy, setSortBy] = useState("popular");
   const [priceRange, setPriceRange] = useState([0, 3000]);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
@@ -34,6 +150,23 @@ export default function CategoryPage() {
   const [minRating, setMinRating] = useState<number | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [filterOpen, setFilterOpen] = useState(false);
+
+  // Keep viewMode aligned with viewport (mobile=list, desktop=grid)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const mq = window.matchMedia("(max-width: 639px)");
+
+    const apply = () => setViewMode(mq.matches ? "list" : "grid");
+    apply();
+
+    if (typeof mq.addEventListener === "function") {
+      mq.addEventListener("change", apply);
+      return () => mq.removeEventListener("change", apply);
+    }
+
+    mq.addListener(apply);
+    return () => mq.removeListener(apply);
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -281,6 +414,146 @@ export default function CategoryPage() {
     );
   };
 
+  const filtersPanel = (
+    <div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-6">
+      <h2 className="font-black text-gray-800">Filtre</h2>
+
+      {/* Categories */}
+      <div>
+        <h3 className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-3">
+          Catégories
+        </h3>
+        {categoryFacets.map((cat) => (
+          <button
+            key={cat.name}
+            onClick={() =>
+              setSelectedCategory((current) =>
+                current === cat.name ? null : cat.name
+              )
+            }
+            className={`w-full flex items-center justify-between py-2 text-sm transition-colors ${
+              selectedCategory === cat.name
+                ? "text-[#137fec] font-semibold"
+                : "text-gray-600 hover:text-[#137fec]"
+            }`}
+          >
+            <span>{cat.name}</span>
+            <span className="text-xs bg-gray-100 text-gray-400 px-2 py-0.5 rounded-full">
+              {cat.count}
+            </span>
+          </button>
+        ))}
+      </div>
+
+      {/* Sub-categories */}
+      {subCategoryFacets.length > 0 && (
+        <div>
+          <h3 className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-3">
+            Sous-catégories
+          </h3>
+          {subCategoryFacets.map((sub) => (
+            <button
+              key={sub.name}
+              onClick={() =>
+                setSelectedSubCategory((current) =>
+                  current === sub.name ? null : sub.name
+                )
+              }
+              className={`w-full flex items-center justify-between py-2 text-sm transition-colors ${
+                selectedSubCategory === sub.name
+                  ? "text-[#137fec] font-semibold"
+                  : "text-gray-600 hover:text-[#137fec]"
+              }`}
+            >
+              <span>{sub.name}</span>
+              <span className="text-xs bg-gray-100 text-gray-400 px-2 py-0.5 rounded-full">
+                {sub.count}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Price range */}
+      <div>
+        <h3 className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-3">
+          Prix
+        </h3>
+        <div className="flex items-center justify-between text-sm font-semibold text-gray-700 mb-2">
+          <span>{priceRange[0].toLocaleString("fr-FR")} GNF</span>
+          <span>{priceRange[1].toLocaleString("fr-FR")} GNF</span>
+        </div>
+        {maxPrice > 0 && (
+          <input
+            type="range"
+            min={0}
+            max={maxPrice}
+            value={priceRange[1]}
+            onChange={(e) =>
+              setPriceRange([priceRange[0], parseInt(e.target.value)])
+            }
+            className="w-full accent-[#137fec]"
+          />
+        )}
+      </div>
+
+      {/* Brands */}
+      <div>
+        <h3 className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-3">
+          Marques
+        </h3>
+        <div className="space-y-2">
+          {brandOptions.map((brand) => (
+            <label key={brand} className="flex items-center gap-2.5 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={selectedBrands.includes(brand)}
+                onChange={() => toggleBrand(brand)}
+                className="accent-[#137fec] w-4 h-4"
+              />
+              <span className="text-sm text-gray-600">{brand}</span>
+            </label>
+          ))}
+        </div>
+      </div>
+
+      {/* Processor chips */}
+      <div>
+        <h3 className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-3">
+          Processeur
+        </h3>
+        <div className="flex flex-wrap gap-1.5">
+          {processorOptions.map((proc) => (
+            <button
+              key={proc}
+              onClick={() =>
+                setSelectedProcessors((prev) =>
+                  prev.includes(proc)
+                    ? prev.filter((p) => p !== proc)
+                    : [...prev, proc]
+                )
+              }
+              className={`text-xs px-2.5 py-1 rounded-full border font-medium transition-all ${
+                selectedProcessors.includes(proc)
+                  ? "border-[#137fec] bg-[#137fec]/10 text-[#137fec]"
+                  : "border-gray-200 text-gray-500 hover:border-gray-300"
+              }`}
+            >
+              {proc}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <button
+        onClick={() => setFilterOpen(false)}
+        className="w-full py-2.5 bg-[#137fec] text-white font-semibold text-sm rounded-xl hover:bg-[#0a6fd4] transition-colors"
+      >
+        Appliquer les Filtre
+      </button>
+    </div>
+  );
+
   return (
     <div className="min-h-screen bg-[#f6f7f8]">
       <Header />
@@ -304,159 +577,35 @@ export default function CategoryPage() {
           </div>
         </div>
 
+        {/* Mobile filters drawer */}
+        {filterOpen && (
+          <div className="xl:hidden fixed inset-0 z-50">
+            <button
+              type="button"
+              aria-label="Fermer les Filtre"
+              className="absolute inset-0 bg-black/40"
+              onClick={() => setFilterOpen(false)}
+            />
+            <div className="absolute inset-y-0 left-0 w-[88%] max-w-sm bg-[#f6f7f8] p-4 overflow-y-auto">
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-sm font-black text-[#101922]">Filtre</p>
+                <button
+                  type="button"
+                  onClick={() => setFilterOpen(false)}
+                  className="w-10 h-10 rounded-xl bg-white border border-gray-200 flex items-center justify-center"
+                >
+                  <X className="w-5 h-5 text-gray-700" />
+                </button>
+              </div>
+              {filtersPanel}
+            </div>
+          </div>
+        )}
+
         <div className="flex gap-6">
           {/* Sidebar filters - desktop */}
           <aside className="hidden xl:block w-64 flex-shrink-0">
-            <div className="bg-white rounded-2xl border border-gray-100 p-5 sticky top-24 space-y-6">
-              <h2 className="font-black text-gray-800">Filtres</h2>
-
-              {/* Categories */}
-              <div>
-                <h3 className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-3">Catégories</h3>
-                {categoryFacets.map((cat) => (
-                  <button
-                    key={cat.name}
-                    onClick={() =>
-                      setSelectedCategory((current) =>
-                        current === cat.name ? null : cat.name
-                      )
-                    }
-                    className={`w-full flex items-center justify-between py-2 text-sm transition-colors ${
-                      selectedCategory === cat.name
-                        ? "text-[#137fec] font-semibold"
-                        : "text-gray-600 hover:text-[#137fec]"
-                    }`}
-                  >
-                    <span>{cat.name}</span>
-                    <span className="text-xs bg-gray-100 text-gray-400 px-2 py-0.5 rounded-full">{cat.count}</span>
-                  </button>
-                ))}
-              </div>
-
-              {/* Sub-categories */}
-              {subCategoryFacets.length > 0 && (
-                <div>
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-3">
-                    Sous-catégories
-                  </h3>
-                  {subCategoryFacets.map((sub) => (
-                    <button
-                      key={sub.name}
-                      onClick={() =>
-                        setSelectedSubCategory((current) =>
-                          current === sub.name ? null : sub.name
-                        )
-                      }
-                      className={`w-full flex items-center justify-between py-2 text-sm transition-colors ${
-                        selectedSubCategory === sub.name
-                          ? "text-[#137fec] font-semibold"
-                          : "text-gray-600 hover:text-[#137fec]"
-                      }`}
-                    >
-                      <span>{sub.name}</span>
-                      <span className="text-xs bg-gray-100 text-gray-400 px-2 py-0.5 rounded-full">
-                        {sub.count}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              {/* Price range */}
-              <div>
-                <h3 className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-3">Prix</h3>
-                <div className="flex items-center justify-between text-sm font-semibold text-gray-700 mb-2">
-                  <span>{priceRange[0].toLocaleString("fr-FR")} GNF</span>
-                  <span>{priceRange[1].toLocaleString("fr-FR")} GNF</span>
-                </div>
-                {maxPrice > 0 && (
-                  <input
-                    type="range"
-                    min={0}
-                    max={maxPrice}
-                    value={priceRange[1]}
-                    onChange={(e) =>
-                      setPriceRange([priceRange[0], parseInt(e.target.value)])
-                    }
-                    className="w-full accent-[#137fec]"
-                  />
-                )}
-              </div>
-
-              {/* Brands */}
-              <div>
-                <h3 className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-3">Marques</h3>
-                <div className="space-y-2">
-                  {brandOptions.map((brand) => (
-                    <label key={brand} className="flex items-center gap-2.5 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={selectedBrands.includes(brand)}
-                        onChange={() => toggleBrand(brand)}
-                        className="accent-[#137fec] w-4 h-4"
-                      />
-                      <span className="text-sm text-gray-600">{brand}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-
-              {/* Processor chips */}
-              <div>
-                <h3 className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-3">Processeur</h3>
-                <div className="flex flex-wrap gap-1.5">
-                  {processorOptions.map((proc) => (
-                    <button
-                      key={proc}
-                      onClick={() =>
-                        setSelectedProcessors((prev) =>
-                          prev.includes(proc) ? prev.filter((p) => p !== proc) : [...prev, proc]
-                        )
-                      }
-                      className={`text-xs px-2.5 py-1 rounded-full border font-medium transition-all ${
-                        selectedProcessors.includes(proc)
-                          ? "border-[#137fec] bg-[#137fec]/10 text-[#137fec]"
-                          : "border-gray-200 text-gray-500 hover:border-gray-300"
-                      }`}
-                    >
-                      {proc}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Rating */}
-              {/* <div>
-                <h3 className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-3">Note minimale</h3>
-                <div className="space-y-2">
-                  {[4, 3, 2, 1].map((stars) => (
-                    <label key={stars} className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="radio"
-                        name="rating"
-                        className="accent-[#137fec]"
-                        checked={minRating === stars}
-                        onChange={() =>
-                          setMinRating((current) =>
-                            current === stars ? null : stars
-                          )
-                        }
-                      />
-                      <div className="flex items-center gap-0.5">
-                        {[1, 2, 3, 4, 5].map((s) => (
-                          <Star key={s} className={`w-3.5 h-3.5 ${s <= stars ? "fill-amber-400 text-amber-400" : "text-gray-200 fill-gray-200"}`} />
-                        ))}
-                      </div>
-                      <span className="text-xs text-gray-500">& plus</span>
-                    </label>
-                  ))}
-                </div>
-              </div> */}
-
-              <button className="w-full py-2.5 bg-[#137fec] text-white font-semibold text-sm rounded-xl hover:bg-[#0a6fd4] transition-colors">
-                Appliquer les filtres
-              </button>
-            </div>
+            <div className="sticky top-24">{filtersPanel}</div>
           </aside>
 
           {/* Products area */}
@@ -469,7 +618,7 @@ export default function CategoryPage() {
                 className="xl:hidden flex items-center gap-1.5 text-sm font-semibold text-gray-700 border border-gray-200 px-3 py-2 rounded-xl hover:border-[#137fec] hover:text-[#137fec] transition-all"
               >
                 <SlidersHorizontal className="w-4 h-4" />
-                Filtres
+                Filtre
               </button>
 
               {/* View toggles */}
@@ -489,7 +638,7 @@ export default function CategoryPage() {
               </div>
 
               {/* Sort */}
-              <div className="relative">
+              {/* <div className="relative">
                 <select
                   value={sortBy}
                   onChange={(e) => setSortBy(e.target.value)}
@@ -502,7 +651,7 @@ export default function CategoryPage() {
                   <option value="rating">Meilleures notes</option>
                 </select>
                 <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
-              </div>
+              </div> */}
             </div>
 
             {/* Active filter chips */}
@@ -553,12 +702,20 @@ export default function CategoryPage() {
               </div>
             )}
 
-            {/* Products grid */}
-            <div className={`grid gap-4 ${viewMode === "grid" ? "grid-cols-1 sm:grid-cols-2 xl:grid-cols-3" : "grid-cols-1"}`}>
-              {paginatedProducts.map((product) => (
-                <ProductCard key={product.id} {...product} />
-              ))}
-            </div>
+            {/* Products */}
+            {viewMode === "grid" ? (
+              <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 xl:grid-cols-3">
+                {paginatedProducts.map((product) => (
+                  <ProductCard key={product.id} {...product} />
+                ))}
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {paginatedProducts.map((product) => (
+                  <ProductListRow key={product.id} product={product} />
+                ))}
+              </div>
+            )}
 
             {/* Pagination */}
             <div className="mt-8 flex items-center justify-center gap-1.5">

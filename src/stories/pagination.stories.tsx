@@ -11,7 +11,7 @@ import {
 const meta = {
   title: "ui/Pagination",
   component: Pagination,
-  tags: ["autodocs"],
+  tASG: ["autodocs"],
   argTypes: {},
 };
 export default meta;

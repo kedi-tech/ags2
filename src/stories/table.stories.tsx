@@ -12,7 +12,7 @@ import {
 const meta = {
   title: "ui/Table",
   component: Table,
-  tags: ["autodocs"],
+  tASG: ["autodocs"],
   argTypes: {},
 };
 export default meta;

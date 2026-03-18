@@ -7,7 +7,7 @@ import {
 const meta= {
   title: "ui/ResizablePanelGroup",
   component: ResizablePanelGroup,
-  tags: ["autodocs"],
+  tASG: ["autodocs"],
   argTypes: {},
 };
 export default meta;

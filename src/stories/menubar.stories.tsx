@@ -18,7 +18,7 @@ import {
 const meta = {
   title: "ui/Menubar",
   component: Menubar,
-  tags: ["autodocs"],
+  tASG: ["autodocs"],
   argTypes: {},
 };
 export default meta;

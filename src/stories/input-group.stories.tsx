@@ -15,7 +15,7 @@ import { Kbd } from "../components/ui/kbd";
 const meta = {
   title: "ui/InputGroup",
   component: InputGroup,
-  tags: ["autodocs"],
+  tASG: ["autodocs"],
   argTypes: {},
 };
 export default meta;

@@ -5,7 +5,7 @@ import { Switch } from "../components/ui/switch";
 const meta = {
   title: "ui/Switch",
   component: Switch,
-  tags: ["autodocs"],
+  tASG: ["autodocs"],
   argTypes: {},
 };
 export default meta;

@@ -42,21 +42,21 @@ const heroSlides = [
     title: "Élevez Votre Style de Vie",
     subtitle: "Découvrez notre sélection premium de produits tech, mode et maison avec des offres exceptionnelles.",
     bg: "https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=1600&q=80",
-    cta: "/categorie/electronique",
+    cta: "/categories",
   },
   {
     badge: "Nouveautés Mode",
     title: "La Mode Selon Vous",
     subtitle: "Exprimez votre style avec les dernières tendances de la saison.",
     bg: "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=1600&q=80",
-    cta: "/categorie/mode",
+    cta: "/categories",
   },
   {
     badge: "Maison & Déco",
     title: "Votre Intérieur de Rêve",
     subtitle: "Transformez votre espace avec notre collection maison connectée.",
     bg: "https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=1600&q=80",
-    cta: "/categorie/maison-jardin",
+    cta: "/categories",
   },
 ];
 
@@ -307,7 +307,7 @@ export default function HomePage() {
               <h3 className="text-2xl font-black text-white mb-2">Connectez Votre Vie</h3>
               <p className="text-white/70 text-sm mb-5">Smart home dès 290&nbsp;000 GNF · Livraison gratuite</p>
               <Link
-                to="/categorie/maison-jardin"
+                to="/categorie"
                 className="inline-flex items-center gap-2 bg-white text-[#101922] font-semibold px-5 py-2.5 rounded-xl text-sm hover:bg-[#137fec] hover:text-white transition-all w-fit"
               >
                 Acheter <ArrowRight className="w-4 h-4" />
@@ -326,7 +326,7 @@ export default function HomePage() {
               <p className="text-gray-500 text-sm mt-1">Les derniers produits ajoutés à notre catalogue</p>
             </div>
             <Link
-              to="/categorie/electronique"
+              to="/categories"
               className="hidden sm:flex items-center gap-1 text-sm font-semibold text-[#137fec] hover:underline"
             >
               Tout voir <ArrowRight className="w-4 h-4" />
@@ -334,12 +334,17 @@ export default function HomePage() {
           </div>
 
           {/* Horizontal scroll on mobile, grid on desktop */}
-          <div className="flex gap-4 overflow-x-auto pb-4 sm:grid sm:grid-cols-2 lg:grid-cols-5 sm:overflow-visible sm:pb-0">
+          <div className="sm:grid sm:grid-cols-2 lg:grid-cols-5 sm:gap-4">
+            <div className="-mx-4 px-4 flex gap-4 overflow-x-auto pb-4 snap-x snap-mandatory scroll-px-4 sm:mx-0 sm:px-0 sm:overflow-visible sm:pb-0 sm:contents">
             {newArrivals.map((product) => (
-              <div key={product.id} className="min-w-[260px] sm:min-w-0 flex-shrink-0 sm:flex-shrink">
+              <div
+                key={product.id}
+                className="w-[220px] min-w-[220px] min-[420px]:w-[240px] min-[420px]:min-w-[240px] flex-shrink-0 snap-start sm:w-auto sm:min-w-0 sm:flex-shrink"
+              >
                 <ProductCard {...product} />
               </div>
             ))}
+            </div>
           </div>
         </div>
       </section>
@@ -353,7 +358,7 @@ export default function HomePage() {
             <span className="inline-block bg-white/20 text-white text-xs font-bold px-3 py-1.5 rounded-full mb-4 uppercase tracking-wide">
               Programme fidélité
             </span>
-            <h2 className="text-2xl sm:text-4xl font-black mb-3">Rejoignez AGS Premium</h2>
+            <h2 className="text-2xl sm:text-4xl font-black mb-3">Rejoignez ASG Premium</h2>
             <p className="text-white/80 text-sm sm:text-base max-w-xl mx-auto mb-6">
               Accédez à des offres exclusives, une livraison gratuite illimitée et un support prioritaire 24/7.
             </p>

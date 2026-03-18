@@ -18,7 +18,7 @@ import {
 const meta = {
   title: "ui/ContextMenu",
   component: ContextMenu,
-  tags: ["autodocs"],
+  tASG: ["autodocs"],
   argTypes: {},
 };
 export default meta;

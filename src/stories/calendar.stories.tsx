@@ -24,7 +24,7 @@ import { addDays, format } from "date-fns";
 const meta = {
   title: "ui/Calendar",
   component: Calendar,
-  tags: ["autodocs"],
+  tASG: ["autodocs"],
   argTypes: {},
 };
 export default meta;

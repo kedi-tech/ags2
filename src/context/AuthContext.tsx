@@ -20,6 +20,7 @@ type AuthContextValue = {
   loginWithToken: (token: string) => Promise<void>;
   logout: () => void;
   updateClient: (patch: Partial<AuthClient>) => void;
+  refreshClient: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -109,6 +110,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const refreshClient = async () => {
+    if (!state.token) return;
+    try {
+      const me = await getCurrentClient(state.token);
+      setState((prev) => ({ ...prev, client: me }));
+    } catch (error) {
+      console.error("Failed to refresh current client", error);
+    }
+  };
+
   const logout = () => {
     setState({ token: null, client: null });
     try {
@@ -131,6 +142,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             ...prev,
             client: prev.client ? { ...prev.client, ...patch } : prev.client,
           })),
+        refreshClient,
       }}
     >
       {children}

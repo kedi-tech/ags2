@@ -4,7 +4,7 @@ import { AspectRatio } from "../components/ui/aspect-ratio";
 const meta = {
   title: "ui/AspectRatio",
   component: AspectRatio,
-  tags: ["autodocs"],
+  tASG: ["autodocs"],
   argTypes: {},
 };
 

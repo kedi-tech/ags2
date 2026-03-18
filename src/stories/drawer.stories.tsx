@@ -13,7 +13,7 @@ import {
 const meta = {
   title: "ui/Drawer",
   component: Drawer,
-  tags: ["autodocs"],
+  tASG: ["autodocs"],
   argTypes: {},
 };
 export default meta;

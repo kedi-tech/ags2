@@ -9,7 +9,7 @@ import {
 const meta = {
   title: "ui/InputOTP",
   component: InputOTP,
-  tags: ["autodocs"],
+  tASG: ["autodocs"],
   argTypes: {},
 };
 export default meta;

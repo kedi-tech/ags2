@@ -18,7 +18,7 @@ import {
 const meta = {
   title: "ui/Item",
   component: Item,
-  tags: ["autodocs"],
+  tASG: ["autodocs"],
   argTypes: {},
 };
 export default meta;

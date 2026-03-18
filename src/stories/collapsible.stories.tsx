@@ -11,7 +11,7 @@ import {
 const meta = {
   title: "ui/Collapsible",
   component: Collapsible,
-  tags: ["autodocs"],
+  tASG: ["autodocs"],
   argTypes: {},
 };
 export default meta;

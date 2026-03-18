@@ -13,7 +13,7 @@ import { MoonIcon } from "@radix-ui/react-icons";
 const meta = {
   title: "ui/NavigationMenu",
   component: NavigationMenu,
-  tags: ["autodocs"],
+  tASG: ["autodocs"],
   argTypes: {},
 };
 export default meta;

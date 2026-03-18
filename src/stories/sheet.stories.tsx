@@ -11,7 +11,7 @@ import {
 const meta = {
   title: "ui/Sheet",
   component: Sheet,
-  tags: ["autodocs"],
+  tASG: ["autodocs"],
   argTypes: {},
 };
 export default meta;

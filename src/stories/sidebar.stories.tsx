@@ -28,7 +28,7 @@ import {
 const meta = {
   title: "ui/Sidebar",
   component: Sidebar,
-  tags: ["autodocs"],
+  tASG: ["autodocs"],
   argTypes: {},
 };
 export default meta;

@@ -16,7 +16,7 @@ import {
 const meta = {
   title: "ui/Form",
   component: Form,
-  tags: ["autodocs"],
+  tASG: ["autodocs"],
   argTypes: {},
 };
 export default meta;

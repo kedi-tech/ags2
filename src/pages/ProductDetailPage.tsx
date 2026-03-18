@@ -6,6 +6,7 @@ import Breadcrumb from "@/components/shared/Breadcrumb";
 import ProductCard from "@/components/shared/ProductCard";
 import { getProductById, getProducts } from "@/api/products";
 import { useCart } from "@/context/CartContext";
+import { useWishlist } from "@/context/WishlistContext";
 import {
   Star,
   Heart,
@@ -54,7 +55,6 @@ export default function ProductDetailPage() {
   const [selectedColor, setSelectedColor] = useState<string | null>(null);
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
   const [quantity, setQuantity] = useState(1);
-  const [wishlisted, setWishlisted] = useState(false);
   const [openAccordion, setOpenAccordion] = useState<number[]>([0]);
   const [bundleItems, setBundleItems] = useState<boolean[]>([]);
   const [product, setProduct] = useState<any | null>(null);
@@ -62,6 +62,7 @@ export default function ProductDetailPage() {
   const [frequentlyBought, setFrequentlyBought] = useState<any[]>([]);
   const [alsoLike, setAlsoLike] = useState<any[]>([]);
   const { addItem } = useCart();
+  const { items: wishlistItems, toggleItem } = useWishlist();
 
   useEffect(() => {
     let isMounted = true;
@@ -177,6 +178,7 @@ export default function ProductDetailPage() {
   const rating = product?.rating ?? 4.5;
   const reviews = product?.reviews ?? 0;
   const stock = typeof product?.stock === "number" ? product.stock : null;
+  const wishlisted = wishlistItems.some((w) => String(w.id) === String(product?.id));
 
   const discountAmount =
     originalPrice && originalPrice > price ? originalPrice - price : 0;
@@ -202,6 +204,20 @@ export default function ProductDetailPage() {
       variant: [selectedColor, selectedSize].filter(Boolean).join(" / ") || undefined,
     });
     navigate("/panier");
+  };
+
+  const handleBuyNow = () => {
+    if (!product) return;
+    addItem({
+      id: product.id,
+      name: productName,
+      price,
+      image: currentImage,
+      sku,
+      variant: [selectedColor, selectedSize].filter(Boolean).join(" / ") || undefined,
+      quantity,
+    });
+    navigate("/paiement");
   };
 
   return (
@@ -445,7 +461,15 @@ export default function ProductDetailPage() {
               </button>
 
               <button
-                onClick={() => setWishlisted(!wishlisted)}
+                onClick={() => {
+                  if (!product) return;
+                  toggleItem({
+                    id: product.id,
+                    name: productName,
+                    price,
+                    image: currentImage,
+                  });
+                }}
                 className={`p-3 rounded-xl border-2 transition-all ${
                   wishlisted
                     ? "border-red-300 bg-red-50 text-red-500"
@@ -457,7 +481,7 @@ export default function ProductDetailPage() {
             </div>
 
             <button
-              onClick={() => navigate("/paiement")}
+              onClick={handleBuyNow}
               className="w-full border-2 border-[#101922] text-[#101922] hover:bg-[#101922] hover:text-white font-semibold py-3 rounded-xl transition-all text-sm"
             >
               Acheter Maintenant

@@ -15,7 +15,7 @@ import { Label } from "../components/ui/label";
 const meta = {
   title: "ui/Dialog",
   component: Dialog,
-  tags: ["autodocs"],
+  tASG: ["autodocs"],
   argTypes: {},
 };
 export default meta;

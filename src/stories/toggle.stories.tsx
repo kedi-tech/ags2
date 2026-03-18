@@ -5,7 +5,7 @@ import { Toggle } from "../components/ui/toggle";
 const meta = {
   title: "ui/Toggle",
   component: Toggle,
-  tags: ["autodocs"],
+  tASG: ["autodocs"],
   argTypes: {},
 };
 export default meta;

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { getCategories } from "@/api/category";
 import { useCart } from "@/context/CartContext";
@@ -47,6 +47,8 @@ export default function Header() {
   const [megaMenuOpen, setMegaMenuOpen] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [categories, setCategories] = useState<HeaderCategory[]>([]);
+  const mobileMenuRef = useRef<HTMLDivElement | null>(null);
+  const mobileToggleRef = useRef<HTMLButtonElement | null>(null);
   const navigate = useNavigate();
   const { items: cartItems } = useCart();
   const { client, logout } = useAuth();
@@ -124,6 +126,38 @@ export default function Header() {
       isMounted = false;
     };
   }, []);
+
+  // Close mobile menu on outside click / Escape
+  useEffect(() => {
+    if (!mobileOpen) return;
+
+    const onPointerDown = (event: MouseEvent | TouchEvent) => {
+      const target = event.target as Node | null;
+      if (!target) return;
+
+      const menuEl = mobileMenuRef.current;
+      const toggleEl = mobileToggleRef.current;
+
+      if (menuEl && menuEl.contains(target)) return;
+      if (toggleEl && toggleEl.contains(target)) return;
+
+      setMobileOpen(false);
+    };
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setMobileOpen(false);
+    };
+
+    document.addEventListener("mousedown", onPointerDown, { capture: true });
+    document.addEventListener("touchstart", onPointerDown, { capture: true });
+    window.addEventListener("keydown", onKeyDown);
+
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown, { capture: true } as any);
+      document.removeEventListener("touchstart", onPointerDown, { capture: true } as any);
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [mobileOpen]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -219,6 +253,7 @@ export default function Header() {
 
             {/* Mobile menu toggle */}
             <button
+              ref={mobileToggleRef}
               className="md:hidden p-2.5 rounded-xl hover:bg-[#f6f7f8] transition-colors ml-1"
               onClick={() => setMobileOpen(!mobileOpen)}
             >
@@ -304,7 +339,10 @@ export default function Header() {
 
       {/* Mobile menu */}
       {mobileOpen && (
-        <div className="lg:hidden bg-white border-t border-gray-100 shadow-lg">
+        <div
+          ref={mobileMenuRef}
+          className="lg:hidden bg-white border-t border-gray-100 shadow-lg"
+        >
           {/* Mobile search */}
           <div className="px-4 py-3 border-b border-gray-100">
             <form onSubmit={handleSearch}>
@@ -338,14 +376,28 @@ export default function Header() {
 
           {/* Mobile account */}
           <div className="px-4 py-3 border-t border-gray-100">
-            <Link
-              to="/compte"
-              className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-gray-700 hover:bg-[#137fec]/5 hover:text-[#137fec] transition-colors"
-              onClick={() => setMobileOpen(false)}
-            >
-              <User className="w-4 h-4" />
-              Se connecter
-            </Link>
+            {client ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setMobileOpen(false);
+                  navigate("/compte");
+                }}
+                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-gray-700 hover:bg-[#137fec]/5 hover:text-[#137fec] transition-colors"
+              >
+                <User className="w-4 h-4" />
+                {displayName}
+              </button>
+            ) : (
+              <Link
+                to="/compte"
+                className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-gray-700 hover:bg-[#137fec]/5 hover:text-[#137fec] transition-colors"
+                onClick={() => setMobileOpen(false)}
+              >
+                <User className="w-4 h-4" />
+                Se connecter
+              </Link>
+            )}
           </div>
         </div>
       )}

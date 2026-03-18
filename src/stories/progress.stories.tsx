@@ -4,7 +4,7 @@ import { Progress } from "../components/ui/progress";
 const meta = {
   title: "ui/Progress",
   component: Progress,
-  tags: ["autodocs"],
+  tASG: ["autodocs"],
   argTypes: {},
 };
 export default meta;

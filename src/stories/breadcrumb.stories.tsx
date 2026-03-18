@@ -14,7 +14,7 @@ import {
 const meta = {
   title: "ui/Breadcrumb",
   component: Breadcrumb,
-  tags: ["autodocs"],
+  tASG: ["autodocs"],
   argTypes: {},
 };
 export default meta;

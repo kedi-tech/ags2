@@ -15,7 +15,7 @@ import {
 const meta = {
   title: "ui/Field",
   component: Field,
-  tags: ["autodocs"],
+  tASG: ["autodocs"],
   argTypes: {},
 };
 export default meta;

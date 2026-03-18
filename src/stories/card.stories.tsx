@@ -24,7 +24,7 @@ import {
 const meta = {
   title: "ui/Card",
   component: Card,
-  tags: ["autodocs"],
+  tASG: ["autodocs"],
   argTypes: {},
 };
 export default meta;

@@ -22,7 +22,7 @@ import {
 const meta = {
   title: "ui/Command",
   component: Command,
-  tags: ["autodocs"],
+  tASG: ["autodocs"],
   argTypes: {},
 };
 export default meta;

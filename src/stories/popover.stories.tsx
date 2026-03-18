@@ -13,7 +13,7 @@ import {
 const meta = {
   title: "ui/Popover",
   component: Popover,
-  tags: ["autodocs"],
+  tASG: ["autodocs"],
   argTypes: {},
 };
 export default meta;

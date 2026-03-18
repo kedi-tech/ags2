@@ -7,7 +7,7 @@ import { Toaster } from "../components/ui/sonner";
 const meta = {
   title: "ui/Sonner",
   component: Toaster,
-  tags: ["autodocs"],
+  tASG: ["autodocs"],
   argTypes: {},
 };
 export default meta;

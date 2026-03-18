@@ -75,17 +75,17 @@ export default function ProductCard({
                 image,
               });
             }}
-            className="absolute top-3 right-3 w-8 h-8 bg-white rounded-full shadow-md flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all hover:scale-110"
+            className="absolute top-3 right-3 w-10 h-10 md:w-8 md:h-8 bg-white rounded-full shadow-md flex items-center justify-center opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all active:scale-[0.98] md:hover:scale-110"
           >
             <Heart
               className={`w-4 h-4 transition-colors ${wishlisted ? "fill-red-500 text-red-500" : "text-gray-400"}`}
             />
           </button>
 
-          {/* Add to cart */}
+          {/* Add to cart (desktop hover overlay) */}
           <button
             onClick={handleAddToCart}
-            className="absolute bottom-3 left-3 right-3 bg-[#137fec] hover:bg-[#0a6fd4] text-white text-xs font-semibold py-2 rounded-xl opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center gap-1.5"
+            className="hidden md:flex absolute bottom-3 left-3 right-3 bg-[#137fec] hover:bg-[#0a6fd4] text-white text-xs font-semibold py-2 rounded-xl opacity-0 group-hover:opacity-100 transition-all items-center justify-center gap-1.5"
           >
             {addedToCart ? (
               "✓ Ajouté !"
@@ -99,7 +99,7 @@ export default function ProductCard({
         </div>
 
         {/* Info */}
-        <div className="p-4">
+        <div className="p-3 sm:p-4">
           {category && (
             <p className="text-xs text-[#137fec] font-medium uppercase tracking-wide mb-1">
               {category}
@@ -134,6 +134,21 @@ export default function ProductCard({
               {price.toLocaleString("fr-FR")} GNF
             </span>
           </div>
+
+          {/* Add to cart (mobile) */}
+          <button
+            onClick={handleAddToCart}
+            className="mt-3 md:hidden w-full bg-[#137fec] hover:bg-[#0a6fd4] text-white text-xs font-semibold py-2.5 rounded-xl transition-all flex items-center justify-center gap-1.5 active:scale-[0.99]"
+          >
+            {addedToCart ? (
+              "✓ Ajouté !"
+            ) : (
+              <>
+                <ShoppingCart className="w-3.5 h-3.5" />
+                Ajouter au panier
+              </>
+            )}
+          </button>
         </div>
       </div>
     </Link>

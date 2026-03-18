@@ -10,7 +10,7 @@ import {
 const meta = {
   title: "ui/Carousel",
   component: Carousel,
-  tags: ["autodocs"],
+  tASG: ["autodocs"],
   argTypes: {},
 };
 export default meta;

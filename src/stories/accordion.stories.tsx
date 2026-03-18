@@ -9,7 +9,7 @@ import {
 const meta = {
   title: "ui/Accordion",
   component: Accordion,
-  tags: ["autodocs"],
+  tASG: ["autodocs"],
   argTypes: {},
 };
 

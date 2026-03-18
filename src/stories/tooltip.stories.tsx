@@ -12,7 +12,7 @@ import {
 const meta = {
   title: "ui/Tooltip",
   component: Tooltip,
-  tags: ["autodocs"],
+  tASG: ["autodocs"],
   argTypes: {},
 };
 export default meta;

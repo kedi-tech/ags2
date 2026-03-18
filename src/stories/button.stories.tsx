@@ -6,7 +6,7 @@ import { Button } from "../components/ui/button";
 const meta = {
   title: "ui/Button",
   component: Button,
-  tags: ["autodocs"],
+  tASG: ["autodocs"],
   argTypes: {},
 };
 export default meta;

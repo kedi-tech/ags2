@@ -33,6 +33,17 @@ export default function CartPage() {
   const { items, updateQuantity, removeItem } = useCart();
   const [recommended, setRecommended] = React.useState<any[]>([]);
 
+  // Ensure we start at top when entering cart
+  React.useEffect(() => {
+    // Two frames helps when layout shifts after render
+    window.requestAnimationFrame(() => {
+      window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+      window.requestAnimationFrame(() => {
+        window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+      });
+    });
+  }, []);
+
   const subtotal = items.reduce(
     (sum, item) => sum + item.price * item.quantity,
     0
@@ -224,15 +235,15 @@ export default function CartPage() {
                     <span className="font-semibold text-green-600">GRATUIT</span>
                   </div>
                   <div className="flex justify-between text-sm">
-                    <span className="text-gray-500">Taxes (TVA 20%)</span>
+                    <span className="text-gray-500">Taxes (TVA 18%)</span>
                     <span className="font-semibold text-gray-800">
-                      {(subtotal * 0.2).toLocaleString("fr-FR")} GNF
+                      {(subtotal * 0.18).toLocaleString("fr-FR")} GNF
                     </span>
                   </div>
                   <div className="border-t border-gray-100 pt-3 flex justify-between">
                     <span className="font-black text-gray-900">Total</span>
                     <span className="font-black text-xl text-[#137fec]">
-                    {(subtotal * 1.2).toLocaleString("fr-FR")} GNF
+                    {(subtotal * 1.18).toLocaleString("fr-FR")} GNF
                     </span>
                   </div>
                 </div>

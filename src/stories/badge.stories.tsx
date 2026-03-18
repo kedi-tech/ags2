@@ -4,7 +4,7 @@ import { Badge } from "../components/ui/badge";
 const meta = {
   title: "ui/Badge",
   component: Badge,
-  tags: ["autodocs"],
+  tASG: ["autodocs"],
   argTypes: {},
 };
 export default meta;

@@ -336,7 +336,7 @@ export default function WishlistPage() {
                               navigator
                                 .share({
                                   title: item.name,
-                                  text: "Découvre ce produit sur AGS",
+                                  text: "Découvre ce produit sur ASG",
                                   url,
                                 })
                                 .catch(() => {});

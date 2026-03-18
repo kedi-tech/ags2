@@ -13,7 +13,7 @@ import {
 const meta = {
   title: "ui/Chart",
   component: ChartContainer,
-  tags: ["autodocs"],
+  tASG: ["autodocs"],
   argTypes: {},
 };
 export default meta;

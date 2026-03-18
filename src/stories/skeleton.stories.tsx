@@ -5,7 +5,7 @@ import { Skeleton } from "../components/ui/skeleton";
 const meta = {
   title: "ui/Skeleton",
   component: Skeleton,
-  tags: ["autodocs"],
+  tASG: ["autodocs"],
   argTypes: {},
 };
 export default meta;

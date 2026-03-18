@@ -34,7 +34,7 @@ const faqItems = [
   },
   {
     q: "Quelle est la politique de retour ?",
-    a: "Vous disposez de 30 jours à compter de la réception pour retourner un article. Le produit doit être dans son état d'origine, non utilisé et dans son emballage d'origine. Les frais de retour sont gratuits pour les membres AGS Premium.",
+    a: "Vous disposez de 30 jours à compter de la réception pour retourner un article. Le produit doit être dans son état d'origine, non utilisé et dans son emballage d'origine. Les frais de retour sont gratuits pour les membres ASG Premium.",
     open: false,
   },
   {
@@ -49,7 +49,7 @@ const faqItems = [
   },
 ];
 
-const popularTags = ["Suivre commande", "Politique retour", "Paiements", "Garantie", "Livraison express", "Annulation"];
+const popularTASG = ["Suivre commande", "Politique retour", "Paiements", "Garantie", "Livraison express", "Annulation"];
 
 export default function HelpCenterPage() {
   const [searchQuery, setSearchQuery] = useState("");
@@ -90,10 +90,10 @@ export default function HelpCenterPage() {
             </button>
           </div>
 
-          {/* Popular tags */}
+          {/* Popular tASG */}
           <div className="flex flex-wrap items-center justify-center gap-2 mt-5">
             <span className="text-xs text-gray-400 font-medium">Populaire :</span>
-            {popularTags.map((tag) => (
+            {popularTASG.map((tag) => (
               <button
                 key={tag}
                 className="text-xs bg-white border border-gray-200 text-gray-600 px-3 py-1.5 rounded-full hover:border-[#137fec] hover:text-[#137fec] transition-all font-medium"

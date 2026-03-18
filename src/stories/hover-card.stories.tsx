@@ -12,7 +12,7 @@ import {
 const meta = {
   title: "ui/HoverCard",
   component: HoverCard,
-  tags: ["autodocs"],
+  tASG: ["autodocs"],
   argTypes: {},
 };
 export default meta;
