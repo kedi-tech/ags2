@@ -39,3 +39,21 @@ export const createOrder = async (
   return response.json().catch(() => null);
 };
 
+export const cancelOrder = async (token: string, orderId: string | number) => {
+  const response = await fetch(`${API_URL}/api/v1/orders/${orderId}/cancel`, {
+    method: "PUT",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => "");
+    throw new Error(
+      `Failed to cancel order (${response.status}): ${errorText || response.statusText}`,
+    );
+  }
+
+  return response.json().catch(() => null);
+};
+

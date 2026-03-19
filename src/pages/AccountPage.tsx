@@ -41,10 +41,36 @@ const sidebarLinks = [
 //   { id: "#ORD-44850394", date: "15 Sep 2023", total: "349 000 GNF", status: "Livré", statusType: "delivered" },
 // ];
 
-const statusConfig: Record<string, { color: string; icon: any }> = {
-  delivered: { color: "text-green-700 bg-green-100", icon: CheckCircle },
-  processing: { color: "text-blue-700 bg-blue-100", icon: Clock },
-  cancelled: { color: "text-red-600 bg-red-100", icon: XCircle },
+const statusConfig: Record<string, { label: string; color: string; icon: any }> = {
+  pending: {
+    label: "En attente",
+    color: "text-amber-700 bg-amber-100",
+    icon: Clock,
+  },
+  paid: {
+    label: "En cours",
+    color: "text-blue-700 bg-blue-100",
+    icon: CheckCircle,
+  },
+  cancelled: {
+    label: "Annulée",
+    color: "text-red-600 bg-red-100",
+    icon: XCircle,
+  },
+  delivered: {
+    label: "Livrée",
+    color: "text-green-700 bg-green-100",
+    icon: CheckCircle,
+  },
+};
+
+const getOrderStatusMeta = (rawStatus: unknown) => {
+  const key = String(rawStatus || "pending").toLowerCase();
+  return statusConfig[key] || {
+    label: "En attente",
+    color: "text-amber-700 bg-amber-100",
+    icon: Clock,
+  };
 };
 
 const trackingSteps = [
@@ -617,7 +643,7 @@ export default function AccountPage() {
                         const lastOrder = clientOrders[0];
                         const createdAt = lastOrder.createdAt || lastOrder.date;
                         const total = lastOrder.total ?? lastOrder.amount;
-                        const status = lastOrder.status || "Enregistrée";
+                        const statusMeta = getOrderStatusMeta(lastOrder.status);
                         const items = Array.isArray(lastOrder.items)
                           ? lastOrder.items
                           : [];
@@ -645,7 +671,7 @@ export default function AccountPage() {
                                 {createdAt && ` · ${new Date(createdAt).toLocaleString()}`}
                               </p>
                               <p className="text-xs text-[#137fec] font-semibold mt-1">
-                                {status}
+                                {statusMeta.label}
                               </p>
                             </div>
                             {typeof total === "number" && (
@@ -715,7 +741,7 @@ export default function AccountPage() {
                                       0
                                     )
                                   : null);
-                              const status = order.status || "Enregistrée";
+                              const statusMeta = getOrderStatusMeta(order.status);
 
                               return (
                                 <tr
@@ -731,8 +757,10 @@ export default function AccountPage() {
                                       : "—"}
                                   </td>
                                   <td className="px-6 py-4">
-                                    <span className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full text-blue-700 bg-blue-100">
-                                      {status}
+                                    <span
+                                      className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full ${statusMeta.color}`}
+                                    >
+                                      {statusMeta.label}
                                     </span>
                                   </td>
                                   <td className="px-6 py-4 text-sm font-bold text-gray-800">

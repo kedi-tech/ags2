@@ -5,6 +5,7 @@ import ProductDetailPage from "./pages/ProductDetailPage";
 import CartPage from "./pages/CartPage";
 import CheckoutPage from "./pages/CheckoutPage";
 import OrderConfirmationPage from "./pages/OrderConfirmationPage";
+import PaymentFailedPage from "./pages/PaymentFailedPage";
 import AccountPage from "./pages/AccountPage";
 import HelpCenterPage from "./pages/HelpCenterPage";
 import WishlistPage from "./pages/WishlistPage";
@@ -28,6 +29,7 @@ function App() {
           <Route path="/panier" element={<CartPage />} />
           <Route path="/paiement" element={<CheckoutPage />} />
           <Route path="/confirmation" element={<OrderConfirmationPage />} />
+          <Route path="/paiement-echoue" element={<PaymentFailedPage />} />
           <Route path="/compte" element={<AccountPage />} />
           <Route path="/aide" element={<HelpCenterPage />} />
           <Route path="/souhaits" element={<WishlistPage />} />

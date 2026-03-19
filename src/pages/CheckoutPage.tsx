@@ -1,10 +1,14 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
 import { loginClient, registerClient } from "@/api/clients";
 import { createOrder } from "@/api/orders";
-import { generatePaymentLink } from "@/api/payments";
+import {
+  cancelOrderForPayment,
+  generatePaymentLink,
+  getPaymentStatus,
+} from "@/api/payments";
 import { useCart } from "@/context/CartContext";
 import { useAuth } from "@/context/AuthContext";
 import {
@@ -45,7 +49,13 @@ export default function CheckoutPage() {
     cvv: "",
   });
   const [finalizing, setFinalizing] = useState(false);
+  const [cancellingOrder, setCancellingOrder] = useState(false);
   const [waitingPayment, setWaitingPayment] = useState(false);
+  const [pendingPaymentId, setPendingPaymentId] = useState<string | null>(null);
+  const [pendingOrderId, setPendingOrderId] = useState<string | null>(null);
+  const [pendingOrderSummary, setPendingOrderSummary] = useState<any | null>(null);
+  const [showCancelSuccess, setShowCancelSuccess] = useState(false);
+  const pollInFlightRef = useRef(false);
 
   const subtotal = cartItems.reduce(
     (sum, item) => sum + item.price * item.quantity,
@@ -88,8 +98,7 @@ export default function CheckoutPage() {
         return;
       }
 
-      // At this point, client is registered/logged in; on crée la commande côté backend.
-      const orderResponse = await createOrder(token, {
+      const orderPayload = {
         clientId: client.id,
         items: cartItems.map((item) => ({
           productId: item.id,
@@ -111,56 +120,66 @@ export default function CheckoutPage() {
         total,
         paymentMethod,
         address: client.address,
-      });
+      };
 
+      const orderSummary = {
+        orderNumber: `ORD-${Math.floor(10000000 + Math.random() * 90000000)}`,
+        items: cartItems.map((item) => ({
+          id: item.id,
+          name: item.name,
+          image: item.image,
+          quantity: item.quantity,
+          price: item.price,
+        })),
+        totals: {
+          subtotal,
+          discount,
+          shipping,
+          tax,
+          total,
+        },
+        buyer: {
+          name: client.name,
+          email: client.email,
+          phone: client.phone,
+          address: client.address,
+          city: "",
+          state: "",
+          postalCode: "",
+        },
+        paymentMethod,
+      };
+
+      if (paymentMethod === "cash") {
+        // Flux "cash" : on reste comme avant, on va directement à la page de confirmation
+        const orderResponse = await createOrder(token, orderPayload);
+        const orderNumber =
+          orderResponse?.code ||
+          orderResponse?.id ||
+          orderSummary.orderNumber;
+        clearCart();
+        navigate("/confirmation", {
+          state: { ...orderSummary, orderNumber },
+        });
+        return;
+      }
+
+      // Méthodes autres que cash : créer la commande d'abord, puis générer le lien de paiement.
+      const orderResponse = await createOrder(token, orderPayload);
       const orderId = orderResponse?.id || orderResponse?.code;
       if (!orderId) {
         throw new Error("Impossible de récupérer l'identifiant de la commande.");
       }
+      const orderNumber =
+        orderResponse?.code ||
+        orderResponse?.id ||
+        orderSummary.orderNumber;
 
-      if (paymentMethod === "cash") {
-        // Flux "cash" : on reste comme avant, on va directement à la page de confirmation
-        const orderNumber =
-          orderResponse?.code ||
-          orderResponse?.id ||
-          `ORD-${Math.floor(10000000 + Math.random() * 90000000)}`;
-
-        const orderSummary = {
-          orderNumber,
-          items: cartItems.map((item) => ({
-            id: item.id,
-            name: item.name,
-            image: item.image,
-            quantity: item.quantity,
-            price: item.price,
-          })),
-          totals: {
-            subtotal,
-            discount,
-            shipping,
-            tax,
-            total,
-          },
-          buyer: {
-            name: client.name,
-            email: client.email,
-            phone: client.phone,
-            address: client.address,
-            city: "",
-            state: "",
-            postalCode: "",
-          },
-          paymentMethod,
-        };
-
-        clearCart();
-        navigate("/confirmation", { state: orderSummary });
-        return;
-      }
-
-      // Méthodes autres que cash : génération du lien de paiement
-      const paymentUrl = await generatePaymentLink(token, orderId);
-      window.open(paymentUrl as string, "_blank", "noopener,noreferrer");
+      const payment = await generatePaymentLink(token, orderId);
+      window.open(payment.paymentUrl, "_blank", "noopener,noreferrer");
+      setPendingPaymentId(payment.paymentId);
+      setPendingOrderId(String(orderId));
+      setPendingOrderSummary({ ...orderSummary, orderNumber });
       setWaitingPayment(true);
     } catch (error) {
       console.error("Checkout error", error);
@@ -170,9 +189,128 @@ export default function CheckoutPage() {
     }
   };
 
+  const handleCancelCreatedOrder = async () => {
+    if (!token || !pendingOrderId || cancellingOrder) return;
+    try {
+      setCancellingOrder(true);
+      await cancelOrderForPayment(token, pendingOrderId);
+      setWaitingPayment(false);
+      setPendingPaymentId(null);
+      setPendingOrderId(null);
+      setPendingOrderSummary(null);
+      setShowCancelSuccess(true);
+    } catch (error) {
+      console.error("Cancel order error", error);
+      alert("Impossible d'annuler la commande pour le moment.");
+    } finally {
+      setCancellingOrder(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!waitingPayment || !pendingPaymentId || !token) return;
+    let isEffectActive = true;
+
+    const poll = async () => {
+      if (pollInFlightRef.current) return;
+      pollInFlightRef.current = true;
+      try {
+        const statusResponse = await getPaymentStatus(token, pendingPaymentId);
+        if (!isEffectActive) return;
+        const status = String(statusResponse?.status || "").toUpperCase();
+
+        if (status === "SUCCESS") {
+          const summary = pendingOrderSummary || {};
+          clearCart();
+          setWaitingPayment(false);
+          setPendingPaymentId(null);
+          setPendingOrderId(null);
+          setPendingOrderSummary(null);
+          navigate("/confirmation", { state: summary });
+          return;
+        }
+
+        if (status === "FAILED") {
+          setWaitingPayment(false);
+          const orderNumber =
+            pendingOrderSummary?.orderNumber || pendingPaymentId.slice(-12);
+          setPendingPaymentId(null);
+          setPendingOrderId(null);
+          setPendingOrderSummary(null);
+          navigate("/paiement-echoue", {
+            state: { paymentId: pendingPaymentId, orderNumber },
+          });
+          return;
+        }
+      } catch (error) {
+        console.error("Payment status polling failed", error);
+      } finally {
+        pollInFlightRef.current = false;
+      }
+    };
+
+    poll();
+    const interval = window.setInterval(poll, 5000);
+    return () => {
+      isEffectActive = false;
+      window.clearInterval(interval);
+    };
+  }, [
+    waitingPayment,
+    pendingPaymentId,
+    token,
+    pendingOrderSummary,
+    clearCart,
+    navigate,
+  ]);
+
   return (
-    <div className="min-h-screen bg-[#f6f7f8]">
+    <div className="min-h-screen bg-[#f6f7f8] relative">
       <Header />
+
+      {/* Success modal for order cancellation */}
+      {showCancelSuccess && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+          <button
+            type="button"
+            className="absolute inset-0 bg-black/40"
+            onClick={() => setShowCancelSuccess(false)}
+          />
+          <div className="relative max-w-sm w-full bg-white rounded-2xl shadow-xl border border-gray-100 p-6">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-9 h-9 rounded-full bg-red-50 flex items-center justify-center">
+                <CheckCircle className="w-5 h-5 text-red-500 rotate-45" />
+              </div>
+              <h2 className="text-base font-black text-[#101922]">
+                Commande annulée
+              </h2>
+            </div>
+            <p className="text-xs sm:text-sm text-gray-600">
+              Votre commande en attente de paiement a été annulée. Vous pouvez
+              ajuster votre panier ou relancer un nouveau paiement à tout moment.
+            </p>
+            <div className="mt-4 flex flex-col sm:flex-row gap-2">
+              <button
+                type="button"
+                onClick={() => setShowCancelSuccess(false)}
+                className="flex-1 inline-flex items-center justify-center px-4 py-2.5 rounded-xl bg-[#137fec] hover:bg-[#0a6fd4] text-white text-xs font-semibold transition-colors"
+              >
+                Fermer
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowCancelSuccess(false);
+                  navigate("/panier");
+                }}
+                className="flex-1 inline-flex items-center justify-center px-4 py-2.5 rounded-xl border border-gray-200 text-gray-700 text-xs font-semibold hover:border-[#137fec] hover:text-[#137fec] transition-colors"
+              >
+                Retour au panier
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Progress indicator */}
@@ -217,6 +355,44 @@ export default function CheckoutPage() {
             </div>
           </div>
         </div>
+
+        {waitingPayment && (
+          <div className="mb-6 bg-[#137fec]/5 border border-[#137fec]/20 rounded-2xl p-4 sm:p-5">
+            <div className="flex items-start gap-3">
+              <span className="mt-0.5 w-5 h-5 border-2 border-[#137fec]/40 border-t-[#137fec] rounded-full animate-spin flex-shrink-0" />
+              <div className="min-w-0">
+                <p className="text-sm font-bold text-[#0a6fd4]">
+                  Vérification du paiement en cours...
+                </p>
+                <p className="text-xs sm:text-sm text-gray-600 mt-1">
+                  Nous attendons le retour du prestataire de paiement. Après le
+                  paiement dans l&apos;autre onglet, cette page se mettra à jour
+                  automatiquement.
+                </p>
+                {pendingPaymentId && (
+                  <p className="mt-2 text-[11px] sm:text-xs text-gray-500 break-all">
+                    Référence paiement:{" "}
+                    <span className="font-semibold">{pendingPaymentId}</span>
+                  </p>
+                )}
+                {pendingOrderId && (
+                  <p className="mt-1 text-[11px] sm:text-xs text-gray-500 break-all">
+                    Référence commande:{" "}
+                    <span className="font-semibold">{pendingOrderId}</span>
+                  </p>
+                )}
+                <button
+                  type="button"
+                  onClick={handleCancelCreatedOrder}
+                  disabled={cancellingOrder || !pendingOrderId}
+                  className="mt-3 inline-flex items-center justify-center px-3.5 py-2 rounded-xl border border-red-200 bg-white text-red-600 text-xs font-semibold hover:bg-red-50 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+                >
+                  {cancellingOrder ? "Annulation..." : "Annuler cette commande"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left: Form */}
