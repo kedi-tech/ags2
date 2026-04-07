@@ -206,11 +206,14 @@ export default function AccountPage() {
     e.preventDefault();
     setAuthError(null);
     setAuthLoading(true);
-
+    
     try {
       if (authTab === "login") {
         const data = await loginClient(authForm.email, authForm.password);
-        const token = (data as any).token;
+        const token =
+          (data as any).token ||
+          (data as any).accessToken ||
+          (data as any).access_token;
         if (!token) {
           setAuthError("Réponse de connexion invalide (token manquant).");
           return;
@@ -225,7 +228,7 @@ export default function AccountPage() {
           return;
         }
 
-        const data = await registerClient({
+        await registerClient({
           name: authForm.name,
           type: "INDIVIDUAL",
           email: authForm.email,
@@ -233,9 +236,14 @@ export default function AccountPage() {
           phone: authForm.phone,
           address: authForm.address,
         });
-        const token = (data as any).token;
+        // Registration succeeded — now log in to obtain the token
+        const loginData = await loginClient(authForm.email, authForm.password);
+        const token =
+          (loginData as any).token ||
+          (loginData as any).accessToken ||
+          (loginData as any).access_token;
         if (!token) {
-          setAuthError("Réponse d'inscription invalide (token manquant).");
+          setAuthError("Réponse de connexion invalide (token manquant).");
           return;
         }
         await loginWithToken(token);
@@ -255,7 +263,9 @@ export default function AccountPage() {
   };
 
   const clientOrders: any[] = Array.isArray((client as any)?.orders)
-    ? (client as any).orders
+    ? [...(client as any).orders].sort(
+        (a, b) => new Date(b.createdAt ?? b.date ?? 0).getTime() - new Date(a.createdAt ?? a.date ?? 0).getTime()
+      )
     : [];
   const ordersCount = clientOrders.length;
   const { items: wishlistItems } = useWishlist();
@@ -713,7 +723,7 @@ export default function AccountPage() {
                         <table className="w-full">
                           <thead>
                             <tr className="border-b border-gray-100">
-                              {["ID commande", "Date", "Statut", "Total"].map(
+                              {["ID commande", "Date", "Statut", "Total", "Code promo"].map(
                                 (col) => (
                                   <th
                                     key={col}
@@ -767,6 +777,9 @@ export default function AccountPage() {
                                     {typeof total === "number"
                                       ? `${total.toLocaleString("fr-FR")} GNF`
                                       : "—"}
+                                  </td>
+                                  <td className="px-6 py-4 text-sm text-gray-600">
+                                    {order.promoCode || "—"}
                                   </td>
                                 </tr>
                               );

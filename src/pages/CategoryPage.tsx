@@ -4,6 +4,7 @@ import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
 import Breadcrumb from "@/components/shared/Breadcrumb";
 import ProductCard from "@/components/shared/ProductCard";
+import ProductCardSkeleton, { ProductListRowSkeleton } from "@/components/shared/ProductCardSkeleton";
 import { getCategories } from "@/api/category";
 import { getProducts } from "@/api/products";
 import { getSubCategories } from "@/api/subCategories";
@@ -150,6 +151,7 @@ export default function CategoryPage() {
   const [minRating, setMinRating] = useState<number | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [filterOpen, setFilterOpen] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   // Keep viewMode aligned with viewport (mobile=list, desktop=grid)
   useEffect(() => {
@@ -170,6 +172,7 @@ export default function CategoryPage() {
 
   useEffect(() => {
     let isMounted = true;
+    setLoading(true);
 
     const loadCategoryProducts = async () => {
       try {
@@ -196,13 +199,38 @@ export default function CategoryPage() {
                 price: p.price ?? 0,
                 originalPrice: p.companyPrice,
                 image:
-                  firstImageUrl ||
-                  p.imageUrl ||
-                  "https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=400&q=80",
+                  firstImageUrl || p.imageUrl || "",
                 rating: p.rating ?? 4.5,
                 reviews: p.reviews ?? 0,
               };
             }) || [];
+        } else if (slug === "promotions") {
+          const data = await getProducts();
+          if (!isMounted) return;
+
+          setCategoryName("Promotions");
+
+          mappedProducts = (data || [])
+            .filter((p: any) => p.isPromotional === true)
+            .map((p: any) => {
+              const firstImageUrl =
+                p.images && p.images.length > 0 ? p.images[0].url : undefined;
+
+              return {
+                id: p.id,
+                name: p.name,
+                category: p.category?.name ?? "Produits",
+                subCategory: p.subCategory?.name,
+                brand: p.brand,
+                processor: p.processor,
+                price: p.promotionalPrice ?? p.price ?? 0,
+                originalPrice: p.price,
+                image:
+                  firstImageUrl || p.imageUrl || "",
+                rating: p.rating ?? 4.5,
+                reviews: p.reviews ?? 0,
+              };
+            });
         } else {
           // First try to match a main category
           const categoriesData = await getCategories();
@@ -300,6 +328,8 @@ export default function CategoryPage() {
         }
       } catch (error) {
         console.error("Failed to load category products", error);
+      } finally {
+        if (isMounted) setLoading(false);
       }
     };
 
@@ -705,15 +735,19 @@ export default function CategoryPage() {
             {/* Products */}
             {viewMode === "grid" ? (
               <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 xl:grid-cols-3">
-                {paginatedProducts.map((product) => (
-                  <ProductCard key={product.id} {...product} />
-                ))}
+                {loading
+                  ? Array.from({ length: 6 }).map((_, i) => <ProductCardSkeleton key={i} />)
+                  : paginatedProducts.map((product) => (
+                      <ProductCard key={product.id} {...product} />
+                    ))}
               </div>
             ) : (
               <div className="space-y-3">
-                {paginatedProducts.map((product) => (
-                  <ProductListRow key={product.id} product={product} />
-                ))}
+                {loading
+                  ? Array.from({ length: 6 }).map((_, i) => <ProductListRowSkeleton key={i} />)
+                  : paginatedProducts.map((product) => (
+                      <ProductListRow key={product.id} product={product} />
+                    ))}
               </div>
             )}
 

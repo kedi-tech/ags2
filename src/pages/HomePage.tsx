@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
 import ProductCard from "@/components/shared/ProductCard";
+import ProductCardSkeleton from "@/components/shared/ProductCardSkeleton";
 import { getCategories } from "@/api/category";
 import { getProducts } from "@/api/products";
 import {
@@ -64,6 +65,8 @@ export default function HomePage() {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [categories, setCategories] = useState<ApiCategory[]>([]);
   const [newArrivals, setNewArrivals] = useState<any[]>([]);
+  const [featuredPromos, setFeaturedPromos] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let isMounted = true;
@@ -94,16 +97,38 @@ export default function HomePage() {
               name: p.name,
               category: p.category?.name ?? "Produits",
               price: p.price ?? 0,
-              image:
-                firstImageUrl ||
-                p.imageUrl ||
-                "https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=400&q=80",
+              image: firstImageUrl || p.imageUrl || "",
             };
           });
 
         setNewArrivals(sorted);
+
+        const promos = (productsData || [])
+          .filter((p: any) => p.isPromotional === true && p.promotionalPrice != null)
+          .slice()
+          .sort(
+            (a: any, b: any) =>
+              new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+          )
+          .slice(0, 2)
+          .map((p: any) => {
+            const firstImageUrl =
+              p.images && p.images.length > 0 ? p.images[0].url : undefined;
+            return {
+              id: p.id,
+              name: p.name,
+              category: p.category?.name ?? "Produits",
+              price: p.promotionalPrice,
+              originalPrice: p.price,
+              image: firstImageUrl || p.imageUrl || "",
+            };
+          });
+
+        setFeaturedPromos(promos);
       } catch (error) {
         console.error("Failed to load home data", error);
+      } finally {
+        if (isMounted) setLoading(false);
       }
     };
 
@@ -273,47 +298,41 @@ export default function HomePage() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Card 1 */}
-          <div className="relative rounded-2xl overflow-hidden group" style={{ height: "300px" }}>
-            <img
-              src="https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=800&q=80"
-              alt="Audio Premium"
-              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-            />
-            <div className="absolute inset-0 bg-gradient-to-r from-[#101922]/70 to-transparent" />
-            <div className="absolute inset-0 flex flex-col justify-center p-8">
-              <span className="text-[#137fec] text-xs font-bold uppercase tracking-widest mb-2">Audio Premium</span>
-              <h3 className="text-2xl font-black text-white mb-2">Pure Expérience Sonore</h3>
-              <p className="text-white/70 text-sm mb-5">Jusqu'à -40% sur les casques haut de gamme</p>
-              <Link
-                to="/categorie/audio"
-                className="inline-flex items-center gap-2 bg-white text-[#101922] font-semibold px-5 py-2.5 rounded-xl text-sm hover:bg-[#137fec] hover:text-white transition-all w-fit"
-              >
-                Explorer <ArrowRight className="w-4 h-4" />
-              </Link>
-            </div>
-          </div>
-
-          {/* Card 2 */}
-          <div className="relative rounded-2xl overflow-hidden group" style={{ height: "300px" }}>
-            <img
-              src="https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=800&q=80"
-              alt="Maison Connectée"
-              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-            />
-            <div className="absolute inset-0 bg-gradient-to-r from-[#101922]/70 to-transparent" />
-            <div className="absolute inset-0 flex flex-col justify-center p-8">
-              <span className="text-green-400 text-xs font-bold uppercase tracking-widest mb-2">Maison Connectée</span>
-              <h3 className="text-2xl font-black text-white mb-2">Connectez Votre Vie</h3>
-              <p className="text-white/70 text-sm mb-5">Smart home dès 290&nbsp;000 GNF · Livraison gratuite</p>
-              <Link
-                to="/categorie"
-                className="inline-flex items-center gap-2 bg-white text-[#101922] font-semibold px-5 py-2.5 rounded-xl text-sm hover:bg-[#137fec] hover:text-white transition-all w-fit"
-              >
-                Acheter <ArrowRight className="w-4 h-4" />
-              </Link>
-            </div>
-          </div>
+          {featuredPromos.map((promo) => {
+            const discountPercent =
+              promo.originalPrice && promo.originalPrice > promo.price
+                ? Math.round(((promo.originalPrice - promo.price) / promo.originalPrice) * 100)
+                : null;
+            return (
+              <div key={promo.id} className="relative rounded-2xl overflow-hidden group" style={{ height: "300px" }}>
+                <img
+                  src={promo.image}
+                  alt={promo.name}
+                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                />
+                <div className="absolute inset-0 bg-gradient-to-r from-[#101922]/70 to-transparent" />
+                <div className="absolute inset-0 flex flex-col justify-center p-8">
+                  <span className="text-[#137fec] text-xs font-bold uppercase tracking-widest mb-2">{promo.category}</span>
+                  <h3 className="text-2xl font-black text-white mb-2 line-clamp-2">{promo.name}</h3>
+                  <p className="text-white/70 text-sm mb-1">
+                    {Number(promo.price).toLocaleString("fr-FR")} GNF
+                    {promo.originalPrice && (
+                      <span className="ml-2 line-through text-white/40">{Number(promo.originalPrice).toLocaleString("fr-FR")} GNF</span>
+                    )}
+                  </p>
+                  {discountPercent && (
+                    <p className="text-orange-400 text-xs font-semibold mb-4">-{discountPercent}% de réduction</p>
+                  )}
+                  <Link
+                    to={`/produit/${promo.id}`}
+                    className="inline-flex items-center gap-2 bg-white text-[#101922] font-semibold px-5 py-2.5 rounded-xl text-sm hover:bg-[#137fec] hover:text-white transition-all w-fit"
+                  >
+                    Voir l'offre <ArrowRight className="w-4 h-4" />
+                  </Link>
+                </div>
+              </div>
+            );
+          })}
         </div>
       </section>
 
@@ -336,21 +355,30 @@ export default function HomePage() {
           {/* Horizontal scroll on mobile, grid on desktop */}
           <div className="sm:grid sm:grid-cols-2 lg:grid-cols-5 sm:gap-4">
             <div className="-mx-4 px-4 flex gap-4 overflow-x-auto pb-4 snap-x snap-mandatory scroll-px-4 sm:mx-0 sm:px-0 sm:overflow-visible sm:pb-0 sm:contents">
-            {newArrivals.map((product) => (
-              <div
-                key={product.id}
-                className="w-[220px] min-w-[220px] min-[420px]:w-[240px] min-[420px]:min-w-[240px] flex-shrink-0 snap-start sm:w-auto sm:min-w-0 sm:flex-shrink"
-              >
-                <ProductCard {...product} />
-              </div>
-            ))}
+            {loading
+              ? Array.from({ length: 5 }).map((_, i) => (
+                  <div
+                    key={i}
+                    className="w-[220px] min-w-[220px] min-[420px]:w-[240px] min-[420px]:min-w-[240px] flex-shrink-0 snap-start sm:w-auto sm:min-w-0 sm:flex-shrink"
+                  >
+                    <ProductCardSkeleton />
+                  </div>
+                ))
+              : newArrivals.map((product) => (
+                  <div
+                    key={product.id}
+                    className="w-[220px] min-w-[220px] min-[420px]:w-[240px] min-[420px]:min-w-[240px] flex-shrink-0 snap-start sm:w-auto sm:min-w-0 sm:flex-shrink"
+                  >
+                    <ProductCard {...product} />
+                  </div>
+                ))}
             </div>
           </div>
         </div>
       </section>
 
       {/* Banner */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+      {/* <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
         <div className="bg-gradient-to-r from-[#101922] to-[#137fec] rounded-3xl p-8 sm:p-12 text-white text-center relative overflow-hidden">
           <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/4" />
           <div className="absolute bottom-0 left-0 w-48 h-48 bg-white/5 rounded-full translate-y-1/2 -translate-x-1/4" />
@@ -370,7 +398,7 @@ export default function HomePage() {
             </Link>
           </div>
         </div>
-      </section>
+      </section> */}
 
       <Footer />
     </div>

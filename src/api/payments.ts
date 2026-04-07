@@ -50,6 +50,7 @@ export const cancelOrderForPayment = async (
 export const generatePaymentLink = async (
   token: string,
   orderId: string | number,
+  promoCode?: string,
 ) => {
   const response = await fetch(`${API_URL}/api/v1/payments/generatePaymentLink`, {
     method: "POST",
@@ -57,7 +58,7 @@ export const generatePaymentLink = async (
       "Content-Type": "application/json",
       Authorization: `Bearer ${token}`,
     },
-    body: JSON.stringify({ orderId }),
+    body: JSON.stringify({ orderId, ...(promoCode ? { promoCode } : {}) }),
   });
 
   if (!response.ok) {

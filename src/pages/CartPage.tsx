@@ -48,8 +48,7 @@ export default function CartPage() {
     (sum, item) => sum + item.price * item.quantity,
     0
   );
-  const tax = Math.round(subtotal * 0.08 * 100) / 100;
-  const total = subtotal + tax;
+  const total = subtotal;
 
   React.useEffect(() => {
     let cancelled = false;
@@ -234,16 +233,16 @@ export default function CartPage() {
                     <span className="text-gray-500">Livraison</span>
                     <span className="font-semibold text-green-600">GRATUIT</span>
                   </div>
-                  <div className="flex justify-between text-sm">
+                  {/* <div className="flex justify-between text-sm">
                     <span className="text-gray-500">Taxes (TVA 18%)</span>
                     <span className="font-semibold text-gray-800">
                       {(subtotal * 0.18).toLocaleString("fr-FR")} GNF
                     </span>
-                  </div>
+                  </div> */}
                   <div className="border-t border-gray-100 pt-3 flex justify-between">
                     <span className="font-black text-gray-900">Total</span>
                     <span className="font-black text-xl text-[#137fec]">
-                    {(subtotal * 1.18).toLocaleString("fr-FR")} GNF
+                    {(subtotal).toLocaleString("fr-FR")} GNF
                     </span>
                   </div>
                 </div>

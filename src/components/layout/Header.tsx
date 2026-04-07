@@ -170,7 +170,11 @@ export default function Header() {
     <header className="sticky top-0 z-50 bg-white shadow-sm border-b border-gray-100">
       {/* Top bar */}
       <div className="bg-[#101922] text-white text-xs py-1.5 text-center">
-        <span>🚚 Livraison gratuite dès 500&nbsp;000 GNF d'achat · Retours gratuits 30 jours</span>
+        <span><span>
+          <img src="/gn.png" alt="Camion" className="w-4 h-4 inline-block ml-2" />
+        </span> Livraison gratuite dès 500&nbsp;000 GNF d'achat · Retours gratuits 30 jours<span>
+          <img src="/gn.png" alt="Camion" className="w-4 h-4 inline-block ml-2" />
+        </span> </span>
       </div>
 
       {/* Main header */}

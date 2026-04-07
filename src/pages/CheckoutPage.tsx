@@ -2,8 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
-import { loginClient, registerClient } from "@/api/clients";
 import { createOrder } from "@/api/orders";
+import { validatePromoCode, type PromoCodeResult } from "@/api/promoCodes";
 import {
   cancelOrderForPayment,
   generatePaymentLink,
@@ -31,9 +31,12 @@ export default function CheckoutPage() {
   const { items: cartItems, clearCart } = useCart();
   const currentStep = client ? 3 : 2;
   const [selectedShipping, setSelectedShipping] = useState("standard");
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("mobile");
   const [promoCode, setPromoCode] = useState("");
   const [promoApplied, setPromoApplied] = useState(false);
+  const [promoResult, setPromoResult] = useState<PromoCodeResult | null>(null);
+  const [promoLoading, setPromoLoading] = useState(false);
+  const [promoError, setPromoError] = useState<string | null>(null);
   const [form, setForm] = useState({
     firstName: "",
     lastName: "",
@@ -62,17 +65,38 @@ export default function CheckoutPage() {
     0
   );
   const shipping = selectedShipping === "express" ? 15000 : 0;
-  const discount = promoApplied ? subtotal * 0.1 : 0;
-  const tax = Math.round((subtotal - discount) * 0.18 * 100) / 100;
-  const total = subtotal + shipping - discount + tax;
+  const promoDiscountType = promoResult?.discountType ?? promoResult?.type;
+  const promoDiscountValue = promoResult?.discountValue ?? promoResult?.value ?? promoResult?.discountAmount ?? promoResult?.discount ?? 0;
+  const discount =
+    promoApplied && promoResult
+      ? promoDiscountType === "PERCENTAGE"
+        ? subtotal * ((promoDiscountValue as number) / 100)
+        : (promoDiscountValue as number)
+      : 0;
 
-  const handleApplyPromo = () => {
-    if (promoCode.toUpperCase() === "ASG10") {
+  const total = subtotal + shipping - discount;
+
+  const handleApplyPromo = async () => {
+    if (!promoCode.trim()) return;
+    setPromoLoading(true);
+    setPromoError(null);
+    setPromoApplied(false);
+    setPromoResult(null);
+    try {
+      const result = await validatePromoCode(promoCode.trim(), total, token || undefined);
+      setPromoResult(result);
       setPromoApplied(true);
+    } catch (err: any) {
+      setPromoError(err.message || "Code promo invalide ou expiré.");
+    } finally {
+      setPromoLoading(false);
     }
   };
 
   const handleFinalizeOrder = async () => {
+    // Open the window synchronously inside the click handler so the browser
+    // doesn't treat it as a popup. We'll set the URL once we have it.
+    let paymentWindow: Window | null = null;
     try {
       if (finalizing || waitingPayment) return;
       setFinalizing(true);
@@ -135,7 +159,6 @@ export default function CheckoutPage() {
           subtotal,
           discount,
           shipping,
-          tax,
           total,
         },
         buyer: {
@@ -149,6 +172,10 @@ export default function CheckoutPage() {
         },
         paymentMethod,
       };
+
+      if (paymentMethod !== "cash") {
+        paymentWindow = window.open("", "_blank");
+      }
 
       if (paymentMethod === "cash") {
         // Flux "cash" : on reste comme avant, on va directement à la page de confirmation
@@ -175,8 +202,12 @@ export default function CheckoutPage() {
         orderResponse?.id ||
         orderSummary.orderNumber;
 
-      const payment = await generatePaymentLink(token, orderId);
-      window.open(payment.paymentUrl, "_blank", "noopener,noreferrer");
+      const payment = await generatePaymentLink(token, orderId, promoApplied && promoResult?.code ? promoResult.code : undefined);
+      if (paymentWindow) {
+        paymentWindow.location.href = payment.paymentUrl;
+      } else {
+        window.open(payment.paymentUrl, "_blank", "noopener,noreferrer");
+      }
       setPendingPaymentId(payment.paymentId);
       setPendingOrderId(String(orderId));
       setPendingOrderSummary({ ...orderSummary, orderNumber });
@@ -611,22 +642,42 @@ export default function CheckoutPage() {
                     <input
                       type="text"
                       value={promoCode}
-                      onChange={(e) => setPromoCode(e.target.value)}
-                      placeholder="Code promo (ASG10)"
-                      className="w-full pl-8 pr-3 py-2 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#137fec]/30 focus:border-[#137fec]"
+                      onChange={(e) => {
+                        setPromoCode(e.target.value);
+                        if (promoApplied) {
+                          setPromoApplied(false);
+                          setPromoResult(null);
+                          setPromoError(null);
+                        }
+                      }}
+                      onKeyDown={(e) => e.key === "Enter" && handleApplyPromo()}
+                      placeholder="Code promo"
+                      disabled={promoLoading}
+                      className="w-full pl-8 pr-3 py-2 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#137fec]/30 focus:border-[#137fec] disabled:opacity-60"
                     />
                   </div>
                   <button
                     onClick={handleApplyPromo}
-                    className="px-3 py-2 bg-[#137fec] text-white text-xs font-semibold rounded-lg hover:bg-[#0a6fd4] transition-colors"
+                    disabled={promoLoading || !promoCode.trim()}
+                    className="px-3 py-2 bg-[#137fec] text-white text-xs font-semibold rounded-lg hover:bg-[#0a6fd4] disabled:opacity-60 disabled:cursor-not-allowed transition-colors flex items-center gap-1"
                   >
-                    Appliquer
+                    {promoLoading ? (
+                      <span className="w-3.5 h-3.5 border-2 border-white/60 border-t-transparent rounded-full animate-spin" />
+                    ) : "Appliquer"}
                   </button>
                 </div>
-                {promoApplied && (
+                {promoApplied && promoResult && (
                   <p className="text-xs text-green-600 font-semibold mt-1.5 flex items-center gap-1">
                     <CheckCircle className="w-3.5 h-3.5" />
-                    Code ASG10 appliqué — 10% de remise
+                    Code {promoResult.code} appliqué —{" "}
+                    {promoDiscountType === "PERCENTAGE"
+                      ? `${promoDiscountValue}% de remise`
+                      : `${(promoDiscountValue as number).toLocaleString("fr-FR")} GNF de remise`}
+                  </p>
+                )}
+                {promoError && (
+                  <p className="text-xs text-red-500 font-semibold mt-1.5">
+                    {promoError}
                   </p>
                 )}
               </div>
@@ -639,11 +690,13 @@ export default function CheckoutPage() {
                     {subtotal.toLocaleString("fr-FR")} GNF
                   </span>
                 </div>
-                {promoApplied && (
+                {promoApplied && promoResult && (
                   <div className="flex justify-between text-sm">
-                    <span className="text-green-600">Remise (10%)</span>
+                    <span className="text-green-600">
+                      Remise{promoDiscountType === "PERCENTAGE" ? ` (${promoDiscountValue}%)` : ""}
+                    </span>
                     <span className="font-semibold text-green-600">
-                      -{discount.toFixed(2)} GNF
+                      -{discount.toLocaleString("fr-FR")} GNF
                     </span>
                   </div>
                 )}
@@ -653,12 +706,12 @@ export default function CheckoutPage() {
                     {shipping === 0 ? "Gratuit" : `${shipping.toLocaleString("fr-FR")} GNF`}
                   </span>
                 </div>
-                <div className="flex justify-between text-sm">
+                {/* <div className="flex justify-between text-sm">
                   <span className="text-gray-500">TVA (18%)</span>
                   <span className="font-semibold">
                     {tax.toFixed(2)} GNF
                   </span>
-                </div>
+                </div> */}
                 <div className="border-t border-gray-100 pt-2.5 flex justify-between">
                   <span className="font-black text-gray-900">Total</span>
                   <span className="font-black text-xl text-[#137fec]">
@@ -686,7 +739,7 @@ export default function CheckoutPage() {
               {/* Trust */}
               <div className="mt-4 flex items-center justify-center gap-1.5 text-xs text-gray-400">
                 <Lock className="w-3.5 h-3.5" />
-                <span>Paiement sécurisé 256-bit SSL</span>
+                <span>Paiement sécurisé</span>
               </div>
 
               <div className="flex items-center justify-center gap-2 mt-3 flex-wrap text-xs text-gray-500">

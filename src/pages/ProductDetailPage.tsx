@@ -4,6 +4,7 @@ import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
 import Breadcrumb from "@/components/shared/Breadcrumb";
 import ProductCard from "@/components/shared/ProductCard";
+import { ProductDetailSkeleton } from "@/components/shared/ProductCardSkeleton";
 import { getProductById, getProducts } from "@/api/products";
 import { useCart } from "@/context/CartContext";
 import { useWishlist } from "@/context/WishlistContext";
@@ -173,8 +174,9 @@ export default function ProductDetailPage() {
   const subCategoryName = (product as any)?.subCategory?.name as string | undefined;
   const productName = product?.name ?? "Produit";
   const sku = product?.sku ?? "SKU-0000";
-  const price = product?.price ?? 0;
-  const originalPrice = product?.companyPrice ?? null;
+  const isPromotional = product?.isPromotional === true && product?.promotionalPrice != null;
+  const price = isPromotional ? (product?.promotionalPrice ?? 0) : (product?.price ?? 0);
+  const originalPrice = isPromotional ? (product?.price ?? null) : (product?.companyPrice ?? null);
   const rating = product?.rating ?? 4.5;
   const reviews = product?.reviews ?? 0;
   const stock = typeof product?.stock === "number" ? product.stock : null;
@@ -233,6 +235,9 @@ export default function ProductDetailPage() {
           ]}
         />
 
+        {loading && <ProductDetailSkeleton />}
+
+        {!loading && <>
         {/* Main product section */}
         <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* Gallery */}
@@ -654,6 +659,7 @@ export default function ProductDetailPage() {
             </div>
           </div>
         )}
+        </>}
       </div>
 
       <Footer />
