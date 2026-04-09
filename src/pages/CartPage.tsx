@@ -127,7 +127,7 @@ export default function CartPage() {
             {/* Cart items */}
             <div className="lg:col-span-2 space-y-4">
               {/* Free shipping banner */}
-              <div className="bg-green-50 border border-green-200 rounded-2xl p-4">
+              {/* <div className="bg-green-50 border border-green-200 rounded-2xl p-4">
                 <div className="flex items-center gap-2 mb-2">
                   <Truck className="w-4 h-4 text-green-600" />
                   <span className="text-sm font-semibold text-green-700">
@@ -141,7 +141,7 @@ export default function CartPage() {
                 <div className="mt-2 bg-white rounded-full h-2 overflow-hidden">
                   <div className="bg-gradient-to-r from-[#137fec] to-blue-400 h-full rounded-full" style={{ width: "82%" }} />
                 </div>
-              </div>
+              </div> */}
 
               {/* Items */}
               {items.map((item) => (
