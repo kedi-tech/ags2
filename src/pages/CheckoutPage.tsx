@@ -8,6 +8,7 @@ import {
   cancelOrderForPayment,
   generatePaymentLink,
   getPaymentStatus,
+  type GeneratedPaymentLink,
 } from "@/api/payments";
 import { useCart } from "@/context/CartContext";
 import { useAuth } from "@/context/AuthContext";
@@ -58,7 +59,13 @@ export default function CheckoutPage() {
   const [pendingOrderId, setPendingOrderId] = useState<string | null>(null);
   const [pendingOrderSummary, setPendingOrderSummary] = useState<any | null>(null);
   const [showCancelSuccess, setShowCancelSuccess] = useState(false);
+  const [showRedirectModal, setShowRedirectModal] = useState(false);
+  const [pendingOrderIdForPayment, setPendingOrderIdForPayment] = useState<string | null>(null);
+  const [pendingOrderSummaryForPayment, setPendingOrderSummaryForPayment] = useState<any | null>(null);
+  const [proceedingToPayment, setProceedingToPayment] = useState(false);
   const pollInFlightRef = useRef(false);
+  const paymentLinkPromiseRef = useRef<Promise<GeneratedPaymentLink> | null>(null);
+  const resolvedPaymentRef = useRef<GeneratedPaymentLink | null>(null);
 
   const subtotal = cartItems.reduce(
     (sum, item) => sum + item.price * item.quantity,
@@ -93,10 +100,54 @@ export default function CheckoutPage() {
     }
   };
 
+  const handleProceedToPayment = async () => {
+    if (!token || !pendingOrderIdForPayment || proceedingToPayment) return;
+    setProceedingToPayment(true);
+
+    // If the URL is already resolved (most common case after modal display time),
+    // open the tab synchronously with the full URL — Safari requires this.
+    const alreadyResolved = resolvedPaymentRef.current;
+    if (alreadyResolved) {
+      resolvedPaymentRef.current = null;
+      paymentLinkPromiseRef.current = null;
+      window.open(alreadyResolved.paymentUrl, "_blank", "noopener,noreferrer");
+      setPendingPaymentId(alreadyResolved.paymentId);
+      setPendingOrderId(pendingOrderIdForPayment);
+      setPendingOrderSummary(pendingOrderSummaryForPayment);
+      setWaitingPayment(true);
+      setShowRedirectModal(false);
+      setPendingOrderIdForPayment(null);
+      setPendingOrderSummaryForPayment(null);
+      setProceedingToPayment(false);
+      return;
+    }
+
+    // Fallback: URL not ready yet — await the in-flight promise.
+    // Note: async window.open may be blocked on Safari; user will see a loading state.
+    try {
+      const payment = await (paymentLinkPromiseRef.current ?? generatePaymentLink(
+        token,
+        pendingOrderIdForPayment,
+        promoApplied && promoResult?.code ? promoResult.code : undefined,
+      ));
+      paymentLinkPromiseRef.current = null;
+      window.open(payment.paymentUrl, "_blank", "noopener,noreferrer");
+      setPendingPaymentId(payment.paymentId);
+      setPendingOrderId(pendingOrderIdForPayment);
+      setPendingOrderSummary(pendingOrderSummaryForPayment);
+      setWaitingPayment(true);
+      setShowRedirectModal(false);
+      setPendingOrderIdForPayment(null);
+      setPendingOrderSummaryForPayment(null);
+    } catch (error) {
+      console.error("Payment link error", error);
+      alert("Une erreur est survenue lors de la génération du lien de paiement.");
+    } finally {
+      setProceedingToPayment(false);
+    }
+  };
+
   const handleFinalizeOrder = async () => {
-    // Open the window synchronously inside the click handler so the browser
-    // doesn't treat it as a popup. We'll set the URL once we have it.
-    let paymentWindow: Window | null = null;
     try {
       if (finalizing || waitingPayment) return;
       setFinalizing(true);
@@ -173,10 +224,6 @@ export default function CheckoutPage() {
         paymentMethod,
       };
 
-      if (paymentMethod !== "cash") {
-        paymentWindow = window.open("", "_blank");
-      }
-
       if (paymentMethod === "cash") {
         // Flux "cash" : on reste comme avant, on va directement à la page de confirmation
         const orderResponse = await createOrder(token, orderPayload);
@@ -191,7 +238,7 @@ export default function CheckoutPage() {
         return;
       }
 
-      // Méthodes autres que cash : créer la commande d'abord, puis générer le lien de paiement.
+      // Méthodes autres que cash : créer la commande, puis afficher le modal de confirmation
       const orderResponse = await createOrder(token, orderPayload);
       const orderId = orderResponse?.id || orderResponse?.code;
       if (!orderId) {
@@ -202,16 +249,20 @@ export default function CheckoutPage() {
         orderResponse?.id ||
         orderSummary.orderNumber;
 
-      const payment = await generatePaymentLink(token, orderId, promoApplied && promoResult?.code ? promoResult.code : undefined);
-      if (paymentWindow) {
-        paymentWindow.location.href = payment.paymentUrl;
-      } else {
-        window.open(payment.paymentUrl, "_blank", "noopener,noreferrer");
-      }
-      setPendingPaymentId(payment.paymentId);
-      setPendingOrderId(String(orderId));
-      setPendingOrderSummary({ ...orderSummary, orderNumber });
-      setWaitingPayment(true);
+      // Start generating the payment link in background while modal is shown.
+      // Cache the resolved value in a ref so the click handler can open the
+      // tab synchronously (required by Safari — async window.open is blocked).
+      resolvedPaymentRef.current = null;
+      const linkPromise = generatePaymentLink(
+        token,
+        String(orderId),
+        promoApplied && promoResult?.code ? promoResult.code : undefined,
+      );
+      paymentLinkPromiseRef.current = linkPromise;
+      linkPromise.then((result) => { resolvedPaymentRef.current = result; }).catch(() => {});
+      setPendingOrderIdForPayment(String(orderId));
+      setPendingOrderSummaryForPayment({ ...orderSummary, orderNumber });
+      setShowRedirectModal(true);
     } catch (error) {
       console.error("Checkout error", error);
       alert("Une erreur est survenue lors de la validation de votre commande.");
@@ -338,6 +389,58 @@ export default function CheckoutPage() {
               >
                 Retour au panier
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Redirect to payment modal */}
+      {showRedirectModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+          <div className="absolute inset-0 bg-black/50" />
+          <div className="relative max-w-sm w-full bg-white rounded-2xl shadow-xl border border-gray-100 p-6">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-9 h-9 rounded-full bg-[#137fec]/10 flex items-center justify-center flex-shrink-0">
+                <Lock className="w-4 h-4 text-[#137fec]" />
+              </div>
+              <h2 className="text-base font-black text-[#101922]">
+                Redirection vers le paiement
+              </h2>
+            </div>
+            <p className="text-sm text-gray-600 mb-1">
+              Votre commande a été créée. Vous allez être redirigé vers une page de paiement externe sécurisée.
+            </p>
+            {/* <p className="text-xs text-gray-400 mb-5">
+              Ne fermez pas cette page — elle sera mise à jour automatiquement une fois le paiement confirmé.
+            </p> */}
+            <div className="flex flex-col sm:flex-row gap-2">
+                <button
+                type="button"
+                onClick={() => setShowRedirectModal(false)}
+                disabled={proceedingToPayment}
+                className="flex-1 inline-flex items-center justify-center px-4 py-2.5 rounded-xl border border-gray-200 text-gray-700 text-sm font-semibold hover:border-gray-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                Annuler
+              </button>
+              <button
+                type="button"
+                onClick={handleProceedToPayment}
+                disabled={proceedingToPayment}
+                className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-[#137fec] hover:bg-[#0a6fd4] disabled:bg-[#9fc9f5] disabled:cursor-not-allowed text-white text-sm font-semibold transition-colors"
+              >
+                {proceedingToPayment ? (
+                  <>
+                    <span className="w-4 h-4 border-2 border-white/60 border-t-transparent rounded-full animate-spin" />
+                    Chargement...
+                  </>
+                ) : (
+                  <>
+                    Procéder
+                    <ChevronRight className="w-4 h-4" />
+                  </>
+                )}
+              </button>
+            
             </div>
           </div>
         </div>

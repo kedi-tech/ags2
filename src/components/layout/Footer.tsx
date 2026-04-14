@@ -20,10 +20,10 @@ export default function Footer() {
   );
 
   const quickLinks = [
-    { name: "À propos", href: "#" },
-    { name: "Contact", href: "#" },
-    { name: "Politique de confidentialité", href: "#" },
-    { name: "CGU", href: "#" },
+    { name: "À propos", href: "/aide" },
+    { name: "Contact", href: "/aide" },
+    { name: "Politique de confidentialité", href: "/legal/confidentialite" },
+    { name: "CGU", href: "/legal/cgu" },
     { name: "Toutes les catégories", href: "/categories" },
   ];
 

@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import { Routes, Route } from "react-router-dom";
+import { Toaster } from "./components/ui/sonner";
 import HomePage from "./pages/HomePage";
 import ProductDetailPage from "./pages/ProductDetailPage";
 import CartPage from "./pages/CartPage";
@@ -11,6 +12,7 @@ import HelpCenterPage from "./pages/HelpCenterPage";
 import WishlistPage from "./pages/WishlistPage";
 import CategoryPage from "./pages/CategoryPage";
 import AllCategoriesPage from "./pages/AllCategoriesPage";
+import LegalPage from "./pages/LegalPage";
 
 function App() {
   return (
@@ -23,6 +25,7 @@ function App() {
       </div>
     }>
       <>
+        <Toaster position="bottom-right" richColors />
         <Routes>
           <Route path="/" element={<HomePage />} />
           <Route path="/produit/:id" element={<ProductDetailPage />} />
@@ -35,6 +38,7 @@ function App() {
           <Route path="/souhaits" element={<WishlistPage />} />
           <Route path="/categorie/:slug" element={<CategoryPage />} />
           <Route path="/categories" element={<AllCategoriesPage />} />
+          <Route path="/legal/:slug" element={<LegalPage />} />
         </Routes>
       </>
     </Suspense>

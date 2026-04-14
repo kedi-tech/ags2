@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, ReactNode } from "react";
+import { toast } from "sonner";
 
 export type CartItem = {
   id: string | number;
@@ -42,6 +43,9 @@ export function CartProvider({ children }: { children: ReactNode }) {
           quantity: item.quantity ?? 1,
         },
       ];
+    });
+    toast.success("Article ajouté au panier", {
+      description: item.name,
     });
   };
 

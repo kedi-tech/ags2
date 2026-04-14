@@ -12,6 +12,8 @@ import {
   Menu,
   X,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   Laptop,
   Smartphone,
   Headphones,
@@ -45,10 +47,14 @@ const megaMenuItems = [
 export default function Header() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [megaMenuOpen, setMegaMenuOpen] = useState<string | null>(null);
+  const [dropdownPos, setDropdownPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
   const [searchQuery, setSearchQuery] = useState("");
   const [categories, setCategories] = useState<HeaderCategory[]>([]);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
   const mobileMenuRef = useRef<HTMLDivElement | null>(null);
   const mobileToggleRef = useRef<HTMLButtonElement | null>(null);
+  const navScrollRef = useRef<HTMLDivElement | null>(null);
   const navigate = useNavigate();
   const { items: cartItems } = useCart();
   const { client, logout } = useAuth();
@@ -159,6 +165,25 @@ export default function Header() {
     };
   }, [mobileOpen]);
 
+  const checkScroll = () => {
+    const el = navScrollRef.current;
+    if (!el) return;
+    setCanScrollLeft(el.scrollLeft > 0);
+    setCanScrollRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 1);
+  };
+
+  useEffect(() => {
+    const el = navScrollRef.current;
+    if (!el) return;
+    checkScroll();
+    el.addEventListener("scroll", checkScroll, { passive: true });
+    window.addEventListener("resize", checkScroll);
+    return () => {
+      el.removeEventListener("scroll", checkScroll);
+      window.removeEventListener("resize", checkScroll);
+    };
+  }, [categories]);
+
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     if (searchQuery.trim()) {
@@ -185,7 +210,7 @@ export default function Header() {
             <img
               src="/ags_logo.png"
               alt="Alliance Solution Group"
-              className="h-20 w-auto sm:h-24 object-contain"
+              className="h-10 w-auto sm:h-12 object-contain"
             />
             
           </Link>
@@ -267,78 +292,110 @@ export default function Header() {
         </div>
 
         {/* Category navigation - desktop */}
-        <nav className="hidden lg:flex items-center gap-1 py-2 border-t border-gray-100">
-          {categories.map((cat) => {
-            const hasSubCategories =
-              Array.isArray(cat.subCategories) && cat.subCategories.length > 0;
+        <div className="hidden lg:block border-t border-gray-100 relative">
+          {canScrollLeft && (
+            <button
+              onClick={() => navScrollRef.current?.scrollBy({ left: -200, behavior: "smooth" })}
+              className="absolute left-0 top-0 bottom-0 z-10 flex items-center px-1 bg-gradient-to-r from-white via-white/90 to-transparent pr-4"
+            >
+              <ChevronLeft className="w-4 h-4 text-gray-500" />
+            </button>
+          )}
+          {canScrollRight && (
+            <button
+              onClick={() => navScrollRef.current?.scrollBy({ left: 200, behavior: "smooth" })}
+              className="absolute right-0 top-0 bottom-0 z-10 flex items-center px-1 bg-gradient-to-l from-white via-white/90 to-transparent pl-4"
+            >
+              <ChevronRight className="w-4 h-4 text-gray-500" />
+            </button>
+          )}
+          <div ref={navScrollRef} className="overflow-x-auto scrollbar-hide">
+          <nav className="flex items-center gap-1 py-2 min-w-max">
+            {categories.map((cat) => {
+              const hasSubCategories =
+                Array.isArray(cat.subCategories) && cat.subCategories.length > 0;
 
-            // "Tous les produits" and "Promotions" stay as simple links
-            const isSimple =
-              cat.slug === "all" || cat.slug === "promotions" || !hasSubCategories;
+              const isSimple =
+                cat.slug === "all" || cat.slug === "promotions" || !hasSubCategories;
 
-            if (isSimple) {
+              if (isSimple) {
+                return (
+                  <Link
+                    key={cat.slug}
+                    to={`/categorie/${cat.slug}`}
+                    className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${
+                      cat.isPromo
+                        ? "text-orange-500 hover:bg-orange-50"
+                        : "text-gray-600 hover:text-[#137fec] hover:bg-[#137fec]/5"
+                    }`}
+                  >
+                    {cat.name}
+                    {cat.isPromo && <Zap className="w-3 h-3 fill-current" />}
+                  </Link>
+                );
+              }
+
               return (
-                <Link
+                <div
                   key={cat.slug}
-                  to={`/categorie/${cat.slug}`}
-                  className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
-                    cat.isPromo
-                      ? "text-orange-500 hover:bg-orange-50"
-                      : "text-gray-600 hover:text-[#137fec] hover:bg-[#137fec]/5"
-                  }`}
+                  onMouseEnter={(e) => {
+                    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                    setDropdownPos({ top: rect.bottom + 4, left: rect.left });
+                    setMegaMenuOpen(cat.slug);
+                  }}
+                  onMouseLeave={() => setMegaMenuOpen((prev) => (prev === cat.slug ? null : prev))}
                 >
-                  {cat.name}
-                  {cat.isPromo && <Zap className="w-3 h-3 fill-current" />}
-                </Link>
+                  <button
+                    type="button"
+                    className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${
+                      cat.isPromo
+                        ? "text-orange-500 hover:bg-orange-50"
+                        : "text-gray-600 hover:text-[#137fec] hover:bg-[#137fec]/5"
+                    }`}
+                  >
+                    {cat.name}
+                    <ChevronDown className="w-3.5 h-3.5 opacity-60" />
+                  </button>
+                </div>
               );
-            }
+            })}
+          </nav>
+          </div>
+        </div>
 
-            return (
-              <div
-                key={cat.slug}
-                className="relative"
-                onMouseEnter={() => setMegaMenuOpen(cat.slug)}
-                onMouseLeave={() => setMegaMenuOpen((prev) => (prev === cat.slug ? null : prev))}
-              >
-                <button
-                  type="button"
-                  className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
-                    cat.isPromo
-                      ? "text-orange-500 hover:bg-orange-50"
-                      : "text-gray-600 hover:text-[#137fec] hover:bg-[#137fec]/5"
-                  }`}
+        {/* Dropdown rendered outside overflow container via fixed positioning */}
+        {megaMenuOpen && (() => {
+          const cat = categories.find((c) => c.slug === megaMenuOpen);
+          if (!cat || !Array.isArray(cat.subCategories) || cat.subCategories.length === 0) return null;
+          return (
+            <div
+              style={{ position: "fixed", top: dropdownPos.top, left: dropdownPos.left }}
+              className="bg-white rounded-2xl shadow-2xl border border-gray-100 py-3 w-56 z-[9999]"
+              onMouseEnter={() => setMegaMenuOpen(megaMenuOpen)}
+              onMouseLeave={() => setMegaMenuOpen(null)}
+            >
+              <div className="px-3 pb-2 border-b border-gray-100">
+                <Link
+                  to={`/categorie/${cat.slug}`}
+                  className="flex items-center justify-between text-xs font-semibold text-gray-700 px-2 py-1.5 rounded-lg hover:bg-[#137fec]/5 hover:text-[#137fec]"
                 >
-                  {cat.name}
-                  <ChevronDown className="w-3.5 h-3.5 opacity-60" />
-                </button>
-
-                {megaMenuOpen === cat.slug && (
-                  <div className="absolute top-full left-0 mt-1 bg-white rounded-2xl shadow-2xl border border-gray-100 py-3 w-56 z-50">
-                    <div className="px-3 pb-2 border-b border-gray-100">
-                      <Link
-                        to={`/categorie/${cat.slug}`}
-                        className="flex items-center justify-between text-xs font-semibold text-gray-700 px-2 py-1.5 rounded-lg hover:bg-[#137fec]/5 hover:text-[#137fec]"
-                      >
-                        Voir tout {cat.name}
-                      </Link>
-                    </div>
-                    <div className="max-h-72 overflow-y-auto py-1">
-                      {cat.subCategories?.map((sub) => (
-                        <Link
-                          key={sub.id}
-                          to={`/categorie/${sub.slug}`}
-                          className="block px-4 py-1.5 text-sm text-gray-600 hover:bg-[#137fec]/5 hover:text-[#137fec] transition-colors"
-                        >
-                          {sub.name}
-                        </Link>
-                      ))}
-                    </div>
-                  </div>
-                )}
+                  Voir tout {cat.name}
+                </Link>
               </div>
-            );
-          })}
-        </nav>
+              <div className="max-h-72 overflow-y-auto py-1">
+                {cat.subCategories.map((sub) => (
+                  <Link
+                    key={sub.id}
+                    to={`/categorie/${sub.slug}`}
+                    className="block px-4 py-1.5 text-sm text-gray-600 hover:bg-[#137fec]/5 hover:text-[#137fec] transition-colors"
+                  >
+                    {sub.name}
+                  </Link>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
       </div>
 
       {/* Mobile menu */}
