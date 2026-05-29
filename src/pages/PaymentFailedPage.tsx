@@ -34,11 +34,11 @@ export default function PaymentFailedPage() {
                 <span className="font-semibold">Commande:</span> #{state.orderNumber}
               </p>
             )}
-            {state.paymentId && (
+            {/* {state.paymentId && (
               <p className="text-gray-700 mt-1 break-all">
                 <span className="font-semibold">Paiement ID:</span> {state.paymentId}
               </p>
-            )}
+            )} */}
           </div>
 
           <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">

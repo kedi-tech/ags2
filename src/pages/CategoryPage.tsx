@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
@@ -16,11 +16,8 @@ import {
   List,
   Heart,
   ShoppingCart,
-  ChevronDown,
   Star,
   X,
-  ChevronLeft,
-  ChevronRight,
 } from "lucide-react";
 
 function ProductListRow({ product }: { product: any }) {
@@ -149,9 +146,10 @@ export default function CategoryPage() {
   const [selectedProcessors, setSelectedProcessors] = useState<string[]>([]);
   const [activeFilters, setActiveFilters] = useState<string[]>([]);
   const [minRating, setMinRating] = useState<number | null>(null);
-  const [currentPage, setCurrentPage] = useState(1);
   const [filterOpen, setFilterOpen] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [visibleCount, setVisibleCount] = useState(12);
+  const sentinelRef = useRef<HTMLDivElement>(null);
 
   // Keep viewMode aligned with viewport (mobile=list, desktop=grid)
   useEffect(() => {
@@ -188,6 +186,8 @@ export default function CategoryPage() {
             (data || []).map((p: any) => {
               const firstImageUrl =
                 p.images && p.images.length > 0 ? p.images[0].url : undefined;
+              const firstVideoUrl =
+                p.videos && p.videos.length > 0 ? p.videos[0].url : undefined;
 
               return {
                 id: p.id,
@@ -198,8 +198,8 @@ export default function CategoryPage() {
                 processor: p.processor,
                 price: p.price ?? 0,
                 originalPrice: p.companyPrice,
-                image:
-                  firstImageUrl || p.imageUrl || "",
+                image: firstImageUrl || p.imageUrl || "",
+                video: firstVideoUrl,
                 rating: p.rating ?? 4.5,
                 reviews: p.reviews ?? 0,
               };
@@ -215,6 +215,8 @@ export default function CategoryPage() {
             .map((p: any) => {
               const firstImageUrl =
                 p.images && p.images.length > 0 ? p.images[0].url : undefined;
+              const firstVideoUrl =
+                p.videos && p.videos.length > 0 ? p.videos[0].url : undefined;
 
               return {
                 id: p.id,
@@ -225,8 +227,8 @@ export default function CategoryPage() {
                 processor: p.processor,
                 price: p.promotionalPrice ?? p.price ?? 0,
                 originalPrice: p.price,
-                image:
-                  firstImageUrl || p.imageUrl || "",
+                image: firstImageUrl || p.imageUrl || "",
+                video: firstVideoUrl,
                 rating: p.rating ?? 4.5,
                 reviews: p.reviews ?? 0,
               };
@@ -249,20 +251,22 @@ export default function CategoryPage() {
               (activeCategory.products || []).map((p: any) => {
                 const firstImageUrl =
                   p.images && p.images.length > 0 ? p.images[0].url : undefined;
+                const firstVideoUrl =
+                  p.videos && p.videos.length > 0 ? p.videos[0].url : undefined;
 
                 return {
                   id: p.id,
                   name: p.name,
                   category: activeCategory.name,
-                    subCategory: p.subCategory?.name,
+                  subCategory: p.subCategory?.name,
                   brand: p.brand,
                   processor: p.processor,
                   price: p.price ?? 0,
                   originalPrice: p.companyPrice,
                   image:
-                    firstImageUrl ||
-                    p.imageUrl ||
+                    firstImageUrl || p.imageUrl ||
                     "https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=400&q=80",
+                  video: firstVideoUrl,
                   rating: p.rating ?? 4.5,
                   reviews: p.reviews ?? 0,
                 };
@@ -295,6 +299,8 @@ export default function CategoryPage() {
               (activeSub.products || []).map((p: any) => {
                 const firstImageUrl =
                   p.images && p.images.length > 0 ? p.images[0].url : undefined;
+                const firstVideoUrl =
+                  p.videos && p.videos.length > 0 ? p.videos[0].url : undefined;
 
                 return {
                   id: p.id,
@@ -309,9 +315,9 @@ export default function CategoryPage() {
                   price: p.price ?? 0,
                   originalPrice: p.companyPrice,
                   image:
-                    firstImageUrl ||
-                    p.imageUrl ||
+                    firstImageUrl || p.imageUrl ||
                     "https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=400&q=80",
+                  video: firstVideoUrl,
                   rating: p.rating ?? 4.5,
                   reviews: p.reviews ?? 0,
                 };
@@ -415,18 +421,11 @@ export default function CategoryPage() {
     }
   });
 
-  const itemsPerPage = 6;
-  const totalPages = Math.max(
-    1,
-    Math.ceil(sortedProducts.length / itemsPerPage)
-  );
-  const paginatedProducts = sortedProducts.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  );
+  const visibleProducts = sortedProducts.slice(0, visibleCount);
+  const hasMore = visibleCount < sortedProducts.length;
 
   useEffect(() => {
-    setCurrentPage(1);
+    setVisibleCount(12);
   }, [
     slug,
     sortBy,
@@ -437,6 +436,21 @@ export default function CategoryPage() {
     selectedCategory,
     selectedSubCategory,
   ]);
+
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel || !hasMore) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          setVisibleCount((prev) => prev + 12);
+        }
+      },
+      { threshold: 0.1 }
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [hasMore, visibleProducts.length]);
 
   const toggleBrand = (brand: string) => {
     setSelectedBrands((prev) =>
@@ -736,61 +750,26 @@ export default function CategoryPage() {
             {viewMode === "grid" ? (
               <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 xl:grid-cols-3">
                 {loading
-                  ? Array.from({ length: 6 }).map((_, i) => <ProductCardSkeleton key={i} />)
-                  : paginatedProducts.map((product) => (
+                  ? Array.from({ length: 12 }).map((_, i) => <ProductCardSkeleton key={i} />)
+                  : visibleProducts.map((product) => (
                       <ProductCard key={product.id} {...product} />
                     ))}
               </div>
             ) : (
               <div className="space-y-3">
                 {loading
-                  ? Array.from({ length: 6 }).map((_, i) => <ProductListRowSkeleton key={i} />)
-                  : paginatedProducts.map((product) => (
+                  ? Array.from({ length: 12 }).map((_, i) => <ProductListRowSkeleton key={i} />)
+                  : visibleProducts.map((product) => (
                       <ProductListRow key={product.id} product={product} />
                     ))}
               </div>
             )}
 
-            {/* Pagination */}
-            <div className="mt-8 flex items-center justify-center gap-1.5">
-              <button
-                disabled={currentPage === 1}
-                onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
-                className="flex items-center gap-1 px-3 py-2 rounded-xl text-sm font-semibold text-gray-500 hover:bg-white hover:text-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
-              >
-                <ChevronLeft className="w-4 h-4" />
-                Précédent
-              </button>
-
-              {Array.from({ length: totalPages }, (_, idx) => idx + 1).map(
-                (page) => (
-                  <button
-                    key={page}
-                    onClick={() => setCurrentPage(page)}
-                    className={`w-9 h-9 rounded-xl text-sm font-semibold transition-all ${
-                      currentPage === page
-                        ? "bg-[#137fec] text-white shadow-sm"
-                        : "text-gray-600 hover:bg-white"
-                    }`}
-                  >
-                    {page}
-                  </button>
-                )
-              )}
-
-              <button
-                disabled={currentPage === totalPages}
-                onClick={() =>
-                  setCurrentPage((page) =>
-                    Math.min(totalPages, page + 1)
-                  )
-                }
-                className="flex items-center gap-1 px-3 py-2 rounded-xl text-sm font-semibold text-gray-500 hover:bg-white hover:text-gray-700 transition-all"
-              >
-                Suivant
-                <ChevronRight className="w-4 h-4" />
-              </button>
-            </div>
+            {!loading && hasMore && (
+              <div ref={sentinelRef} className="flex justify-center py-8">
+                <div className="w-6 h-6 rounded-full border-2 border-[#137fec] border-t-transparent animate-spin" />
+              </div>
+            )}
           </div>
         </div>
       </div>

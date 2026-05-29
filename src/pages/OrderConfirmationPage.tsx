@@ -227,13 +227,9 @@ export default function OrderConfirmationPage() {
                     {subtotal.toLocaleString("fr-FR")} GNF
                   </span>
                 </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-500">Livraison</span>
-                  <span className={`font-semibold ${shipping === 0 ? "text-green-600" : ""}`}>
-                    {shipping === 0
-                      ? "Gratuit"
-                      : `${shipping.toLocaleString("fr-FR")} GNF`}
-                  </span>
+                <div className="text-sm text-gray-500 space-y-0.5">
+                  <p>Livraison disponible à vos frais, selon votre localisation.</p>
+                  <p>Pour toute information complémentaire, merci de contacter le numéro suivant : 612 68 37 64.</p>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-500">TVA</span>

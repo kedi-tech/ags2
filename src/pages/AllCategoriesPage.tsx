@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
@@ -20,6 +20,8 @@ type ApiCategory = {
   subCategories?: ApiSubCategory[];
 };
 
+const PAGE_SIZE = 6;
+
 const DEFAULT_COLLECTION_IMAGE =
   "https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=800&q=80";
 
@@ -35,6 +37,8 @@ export default function AllCategoriesPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [categories, setCategories] = useState<ApiCategory[]>([]);
   const [loading, setLoading] = useState(true);
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const sentinelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -57,6 +61,10 @@ export default function AllCategoriesPage() {
       isMounted = false;
     };
   }, []);
+
+  useEffect(() => {
+    setVisibleCount(PAGE_SIZE);
+  }, [searchQuery]);
 
   const filteredCategories = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -120,6 +128,24 @@ export default function AllCategoriesPage() {
       }));
   }, [categorySections]);
 
+  const visibleSections = categorySections.slice(0, visibleCount);
+  const hasMore = visibleCount < categorySections.length;
+
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel || !hasMore) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          setVisibleCount((prev) => prev + PAGE_SIZE);
+        }
+      },
+      { threshold: 0.1 }
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [hasMore, visibleSections.length]);
+
   return (
     <div className="min-h-screen bg-[#f6f7f8]">
       <Header />
@@ -177,7 +203,7 @@ export default function AllCategoriesPage() {
           )}
 
           {!loading &&
-            categorySections.map((section) => (
+            visibleSections.map((section) => (
               <div key={section.slug} id={`letter-${section.letter}`}>
                 <div className="flex items-center justify-between mb-5">
                   <div className="flex items-center gap-3">
@@ -221,6 +247,11 @@ export default function AllCategoriesPage() {
                 )}
               </div>
             ))}
+          {!loading && hasMore && (
+            <div ref={sentinelRef} className="flex justify-center py-6">
+              <div className="w-6 h-6 rounded-full border-2 border-[#137fec] border-t-transparent animate-spin" />
+            </div>
+          )}
         </div>
 
         {/* Popular collections */}

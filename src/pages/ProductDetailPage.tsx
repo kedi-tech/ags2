@@ -13,8 +13,6 @@ import {
   Heart,
   ShoppingCart,
   Package,
-  Shield,
-  Truck,
   RefreshCw,
   ChevronDown,
   ChevronUp,
@@ -22,6 +20,7 @@ import {
   Plus,
   Minus,
   Check,
+  Play,
 } from "lucide-react";
 
 const FALLBACK_THUMBNAILS = [
@@ -163,12 +162,30 @@ export default function ProductDetailPage() {
     }
   }, [sizeOptions.join(","), selectedSize]);
 
-  const imageUrls: string[] =
-    product?.images && product.images.length > 0
-      ? product.images.map((img: any) => img.url)
-      : FALLBACK_THUMBNAILS;
+  type MediaItem = { url: string; type: "image" | "video" };
 
-  const currentImage = imageUrls[selectedThumb] ?? imageUrls[0];
+  const isVideoUrl = (url: string) =>
+    /\.(mp4|webm|ogg|mov)(\?|$)/i.test(url) || url.includes("/video/");
+
+  const mediaItems: MediaItem[] = (() => {
+    const items: MediaItem[] = [];
+    if (product?.images?.length > 0) {
+      for (const img of product.images) {
+        items.push({ url: img.url, type: isVideoUrl(img.url) ? "video" : "image" });
+      }
+    }
+    if (product?.videos?.length > 0) {
+      for (const vid of product.videos) {
+        items.push({ url: vid.url ?? vid, type: "video" });
+      }
+    }
+    return items.length > 0
+      ? items
+      : FALLBACK_THUMBNAILS.map((url) => ({ url, type: "image" as const }));
+  })();
+
+  const currentMedia = mediaItems[selectedThumb] ?? mediaItems[0];
+  const currentImage = currentMedia?.url ?? "";
 
   const categoryName = product?.category?.name ?? "Produits";
   const subCategoryName = (product as any)?.subCategory?.name as string | undefined;
@@ -243,46 +260,75 @@ export default function ProductDetailPage() {
           {/* Gallery */}
           <div className="flex gap-4">
             {/* Thumbnails - vertical on desktop, horizontal on mobile */}
-              <div className="hidden sm:flex flex-col gap-3">
-              {imageUrls.map((thumb, idx) => (
+            <div className="hidden sm:flex flex-col gap-3">
+              {mediaItems.map((media, idx) => (
                 <button
                   key={idx}
                   onClick={() => setSelectedThumb(idx)}
-                  className={`w-16 h-16 rounded-xl overflow-hidden border-2 transition-all flex-shrink-0 ${
+                  className={`relative w-16 h-16 rounded-xl overflow-hidden border-2 transition-all flex-shrink-0 ${
                     selectedThumb === idx
                       ? "border-[#137fec] shadow-md shadow-[#137fec]/20"
                       : "border-gray-200 hover:border-gray-300"
                   }`}
                 >
-                  <img src={thumb} alt={productName} className="w-full h-full object-cover" />
+                  {media.type === "video" ? (
+                    <>
+                      <video src={media.url} className="w-full h-full object-cover" muted />
+                      <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
+                        <Play className="w-4 h-4 text-white fill-white" />
+                      </div>
+                    </>
+                  ) : (
+                    <img src={media.url} alt={productName} className="w-full h-full object-cover" />
+                  )}
                 </button>
               ))}
             </div>
 
-            {/* Main image */}
+            {/* Main viewer */}
             <div className="flex-1">
               <div className="relative bg-white rounded-2xl overflow-hidden group border border-gray-100">
-                <img
-                  src={currentImage}
-                  alt={productName}
-                  className="w-full aspect-square object-cover group-hover:scale-105 transition-transform duration-500"
-                />
-                <button className="absolute top-4 right-4 w-10 h-10 bg-white rounded-xl shadow-md flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                  <ZoomIn className="w-5 h-5 text-gray-600" />
-                </button>
+                {currentMedia?.type === "video" ? (
+                  <video
+                    key={currentMedia.url}
+                    src={currentMedia.url}
+                    controls
+                    className="w-full aspect-square object-cover"
+                  />
+                ) : (
+                  <>
+                    <img
+                      src={currentImage}
+                      alt={productName}
+                      className="w-full aspect-square object-cover group-hover:scale-105 transition-transform duration-500"
+                    />
+                    <button className="absolute top-4 right-4 w-10 h-10 bg-white rounded-xl shadow-md flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                      <ZoomIn className="w-5 h-5 text-gray-600" />
+                    </button>
+                  </>
+                )}
               </div>
 
               {/* Mobile thumbnails */}
               <div className="flex gap-2 mt-3 sm:hidden overflow-x-auto pb-1">
-              {imageUrls.map((thumb, idx) => (
+                {mediaItems.map((media, idx) => (
                   <button
                     key={idx}
                     onClick={() => setSelectedThumb(idx)}
-                    className={`w-14 h-14 rounded-lg overflow-hidden border-2 flex-shrink-0 ${
+                    className={`relative w-14 h-14 rounded-lg overflow-hidden border-2 flex-shrink-0 ${
                       selectedThumb === idx ? "border-[#137fec]" : "border-gray-200"
                     }`}
                   >
-                    <img src={thumb} alt={productName} className="w-full h-full object-cover" />
+                    {media.type === "video" ? (
+                      <>
+                        <video src={media.url} className="w-full h-full object-cover" muted />
+                        <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
+                          <Play className="w-3.5 h-3.5 text-white fill-white" />
+                        </div>
+                      </>
+                    ) : (
+                      <img src={media.url} alt={productName} className="w-full h-full object-cover" />
+                    )}
                   </button>
                 ))}
               </div>
@@ -553,7 +599,7 @@ export default function ProductDetailPage() {
               {/* Main product */}
               <div className="flex items-center gap-3">
                 <img
-                  src={imageUrls[0]}
+                  src={mediaItems[0]?.url ?? ""}
                   alt={productName}
                   className="w-16 h-16 rounded-xl object-cover"
                 />

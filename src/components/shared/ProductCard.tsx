@@ -1,12 +1,13 @@
 import { Link } from "react-router-dom";
-import { Heart, ShoppingCart, Star } from "lucide-react";
-import { useState } from "react";
+import { Heart, ShoppingCart } from "lucide-react";
+import { useRef, useState } from "react";
 import { useCart } from "@/context/CartContext";
 import { useWishlist } from "@/context/WishlistContext";
 
 interface ProductCardProps {
   id?: string | number;
   image: string;
+  video?: string;
   name: string;
   category?: string;
   price: number;
@@ -20,20 +21,36 @@ interface ProductCardProps {
 export default function ProductCard({
   id = "1",
   image,
+  video,
   name,
   category,
   price,
   originalPrice,
-  // rating = 4.5,
-  // reviews,
   badge,
   badgeColor = "bg-[#137fec]",
 }: ProductCardProps) {
   const [addedToCart, setAddedToCart] = useState(false);
+  const [hovering, setHovering] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
   const { addItem } = useCart();
   const { items: wishlistItems, toggleItem } = useWishlist();
 
   const wishlisted = wishlistItems.some((w) => w.id === id);
+
+  const handleMouseEnter = () => {
+    setHovering(true);
+    if (video && videoRef.current) {
+      videoRef.current.play().catch(() => {});
+    }
+  };
+
+  const handleMouseLeave = () => {
+    setHovering(false);
+    if (video && videoRef.current) {
+      videoRef.current.pause();
+      videoRef.current.currentTime = 0;
+    }
+  };
 
   const handleAddToCart = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -48,15 +65,34 @@ export default function ProductCard({
   };
 
   return (
-    <Link to={`/produit/${id}`} className="group block">
+    <Link
+      to={`/produit/${id}`}
+      className="group block"
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+    >
       <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
-        {/* Image */}
+        {/* Image / Video */}
         <div className="relative overflow-hidden bg-[#f6f7f8] aspect-square">
           <img
             src={image}
             alt={name}
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+            className={`absolute inset-0 w-full h-full object-cover transition-all duration-500 ${
+              video && hovering ? "opacity-0" : "opacity-100 group-hover:scale-105"
+            }`}
           />
+          {video && (
+            <video
+              ref={videoRef}
+              src={video}
+              muted
+              loop
+              playsInline
+              className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ${
+                hovering ? "opacity-100" : "opacity-0"
+              }`}
+            />
+          )}
           {/* Badges */}
           {badge && (
             <span className={`absolute top-3 left-3 ${badgeColor} text-white text-xs font-bold px-2.5 py-1 rounded-full`}>

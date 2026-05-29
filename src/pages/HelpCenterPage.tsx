@@ -183,6 +183,7 @@ export default function HelpCenterPage() {
                   title: "Chat en direct",
                   sub: "Disponible 24h/24, 7j/7",
                   action: "Démarrer le chat",
+                  href: "https://wa.me/224612683764",
                   color: "bg-green-500",
                   badge: "En ligne",
                   badgeColor: "bg-green-100 text-green-700",
@@ -192,6 +193,7 @@ export default function HelpCenterPage() {
                   title: "Email",
                   sub: "Réponse sous 24 heures",
                   action: "Envoyer un email",
+                  href: "mailto:infos@alliancesolution.store",
                   color: "bg-[#137fec]",
                   badge: null,
                   badgeColor: "",
@@ -201,6 +203,7 @@ export default function HelpCenterPage() {
                   title: "Téléphone",
                   sub: "Lun-Ven : 9h00 - 18h00",
                   action: "Appeler maintenant",
+                  href: "tel:+224612683764",
                   color: "bg-purple-500",
                   badge: null,
                   badgeColor: "",
@@ -223,9 +226,14 @@ export default function HelpCenterPage() {
                       <p className="text-xs text-gray-400 mt-0.5">{contact.sub}</p>
                     </div>
                   </div>
-                  <button className="w-full py-2 text-xs font-semibold text-[#137fec] border border-[#137fec]/30 rounded-xl hover:bg-[#137fec] hover:text-white transition-all">
+                  <a
+                    href={contact.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block w-full py-2 text-xs font-semibold text-center text-[#137fec] border border-[#137fec]/30 rounded-xl hover:bg-[#137fec] hover:text-white transition-all"
+                  >
                     {contact.action}
-                  </button>
+                  </a>
                 </div>
               ))}
             </div>
