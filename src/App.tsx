@@ -1,5 +1,13 @@
-import { Suspense } from "react";
-import { Routes, Route } from "react-router-dom";
+import { Suspense, useEffect } from "react";
+import { Routes, Route, useLocation } from "react-router-dom";
+
+function ScrollToTop() {
+  const { pathname } = useLocation();
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [pathname]);
+  return null;
+}
 import { Toaster } from "./components/ui/sonner";
 import HomePage from "./pages/HomePage";
 import ProductDetailPage from "./pages/ProductDetailPage";
@@ -25,6 +33,7 @@ function App() {
       </div>
     }>
       <>
+        <ScrollToTop />
         <Toaster position="bottom-right" richColors />
         <Routes>
           <Route path="/" element={<HomePage />} />
