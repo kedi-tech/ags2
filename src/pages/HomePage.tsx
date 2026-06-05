@@ -345,15 +345,8 @@ export default function HomePage() {
           </div>
         </div>
 
-        <div className="-mx-4 sm:mx-0 px-4 sm:px-0 overflow-x-auto pb-3">
-          <div
-            className="grid gap-3"
-            style={{
-              gridTemplateRows: "repeat(2, auto)",
-              gridAutoFlow: "column",
-              gridAutoColumns: "5rem",
-            }}
-          >
+        <div className="-mx-4 sm:mx-0 px-4 sm:px-0 overflow-x-auto sm:overflow-visible pb-3 sm:pb-0">
+          <div className="grid gap-3 [grid-template-rows:repeat(2,auto)] [grid-auto-flow:column] [grid-auto-columns:5rem] sm:grid-cols-4 sm:[grid-template-rows:unset] sm:[grid-auto-flow:unset] sm:[grid-auto-columns:unset] md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8">
             {categories.map((cat) => {
               const Icon = (cat.icon && iconMap[cat.icon]) || Monitor;
               const slug = cat.slug ?? String(cat.id);
@@ -362,21 +355,21 @@ export default function HomePage() {
                 <Link
                   key={slug}
                   to={`/categorie/${slug}`}
-                  className="group bg-white rounded-2xl border border-gray-100 p-3 text-center hover:border-[#137fec]/30 hover:shadow-lg transition-all duration-300 w-20"
+                  className="group bg-white rounded-2xl border border-gray-100 p-3 sm:p-4 text-center hover:border-[#137fec]/30 hover:shadow-lg transition-all duration-300 w-20 sm:w-full"
                 >
-                  <div className="w-10 h-10 rounded-xl flex items-center justify-center mx-auto mb-2 group-hover:scale-110 transition-transform overflow-hidden">
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center mx-auto mb-2 group-hover:scale-110 transition-transform overflow-hidden">
                     {cat.imageUrl ? (
                       <img src={cat.imageUrl} alt={cat.name} className="w-full h-full object-cover" />
                     ) : (
                       <div className="w-full h-full bg-blue-50 text-blue-600 flex items-center justify-center">
-                        <Icon className="w-5 h-5" />
+                        <Icon className="w-5 h-5 sm:w-6 sm:h-6" />
                       </div>
                     )}
                   </div>
-                  <h3 className="text-[10px] font-bold text-gray-800 group-hover:text-[#137fec] transition-colors line-clamp-2 leading-tight">
+                  <h3 className="text-[10px] sm:text-xs font-bold text-gray-800 group-hover:text-[#137fec] transition-colors line-clamp-2 leading-tight">
                     {cat.name}
                   </h3>
-                  <p className="text-[9px] text-gray-400 mt-0.5">
+                  <p className="text-[9px] sm:text-[10px] text-gray-400 mt-0.5">
                     {count} produit{count > 1 ? "s" : ""}
                   </p>
                 </Link>
